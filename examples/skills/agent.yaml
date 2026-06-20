@@ -12,6 +12,7 @@ spec:
       enabled: false
   instructions:
     system: SYSTEM.md
+  policies: {}
   skills:
     local:
       - skills/greeting-helper

@@ -135,4 +135,4 @@ def test_publish_skill_repeat_is_stable(skills_agent_dir: Path, tmp_path: Path) 
 
     assert first["sha256"] == second["sha256"]
     with zipfile.ZipFile(second["archivePath"]) as archive:
-        assert archive.namelist() == ["SKILL.md"]
+        assert sorted(archive.namelist()) == sorted(["SKILL.md", "scripts/greet.sh"])

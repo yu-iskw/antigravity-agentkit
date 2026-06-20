@@ -8,6 +8,7 @@ import pytest
 
 from antigravity_agentkit.exceptions import LoadError, ValidationError
 from antigravity_agentkit.skills import (
+    compile_skills_paths,
     discover_skills,
     load_skill_md,
     parse_frontmatter,
@@ -32,6 +33,15 @@ def test_discover_skills_in_example(skills_agent_dir: Path) -> None:
     skills = discover_skills(skills_agent_dir)
 
     assert set(skills) == {"greeting-helper"}
+
+
+def test_compile_skills_paths_returns_absolute_package_dirs(skills_agent_dir: Path) -> None:
+    """compile_skills_paths returns deduplicated absolute skill package directories."""
+    skills = discover_skills(skills_agent_dir)
+    paths = compile_skills_paths(skills)
+
+    assert len(paths) == 1
+    assert paths[0] == str((skills_agent_dir / "skills" / "greeting-helper").resolve())
 
 
 def test_parse_frontmatter_extracts_body() -> None:

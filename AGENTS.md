@@ -173,4 +173,6 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 - Local ship verification: `bash dev/test_agent_platform.sh` exercises the full `examples/agent_platform/` workflow and is used by `.github/workflows/agent_ship.yml`.
 - Example default model is `gemini-3.1-flash-lite`; live `run` in `dev/test_examples.sh` needs `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
 - Canonical deploy target is `agent-platform`; `gemini-api`, `ai-studio`, and `cloud-run` are schema stubs until adapters land.
-- P0 SDK emitter wires capabilities, MCP HTTP with per-server tool filters, subagent `SubagentConfig`, and `run --interactive` HITL through `compile_to_sdk_config`.
+- P0 SDK emitter wires capabilities, MCP HTTP with per-server tool filters, subagent `SubagentConfig`, `skills_paths`, and `run --interactive` HITL through `compile_to_sdk_config`; `read_skill` remains a lightweight fallback.
+- SDK default denies `run_command`; skill packages with `scripts/` need an explicit `policies.yaml` allow entry; Agent Platform sandbox for skill scripts is deferred (ADR 0003 Tier C).
+- CLI `chat` is the multi-turn local REPL; `run --interactive` enables HITL tool approval only, not ongoing chat.
