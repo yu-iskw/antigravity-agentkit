@@ -11,6 +11,23 @@ Replace placeholder values in `deployment.yaml` (service account, gateway endpoi
 | Runtime | `agent.yaml`, `SYSTEM.md`, MCP, policies, skills, subagents, evals |
 | Ship    | `deployment.yaml` — scaling, service account, gateway egress       |
 
+## Manifest essentials
+
+`agent.yaml` wires **identity, runtime, and governance**. Standard assets under `skills/` and `subagents/` are auto-discovered when those manifest sections are omitted.
+
+| Required in manifest                            | Discovered from disk                      |
+| ----------------------------------------------- | ----------------------------------------- |
+| `instructions.system`                           | —                                         |
+| `spec.mcp` (+ `admissionPolicy` for production) | `mcp.json` (default path)                 |
+| `spec.policies`                                 | `policies.yaml` (default path)            |
+| `spec.evals.files`                              | —                                         |
+| —                                               | `skills/**/SKILL.md`                      |
+| —                                               | `subagents/*.md` (tools from frontmatter) |
+
+The bundled [`skills/`](../skills/) and [`subagents/`](../subagents/) examples intentionally use **explicit** manifest listings for teaching. This example omits redundant `mcp.file`, `policies.file`, `skills.local`, and `subagents` entries.
+
+Full table: [Agent manifest reference](../../docs/guides/03-agent-manifest-reference.md#manifest-vs-filesystem).
+
 ## Prerequisites
 
 Same as other examples: Python 3.10+, `antigravity-agentkit`, and for live chat `antigravity-agentkit[antigravity]` plus `GEMINI_API_KEY` or `GOOGLE_API_KEY`.

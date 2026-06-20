@@ -64,7 +64,14 @@ skills/my-skill/
     examples.md
 ```
 
-Only paths listed under `spec.skills.local` are loaded for a given agent. AgentKit does not auto-discover skills unless you use the internal `discover_skills` helper during development tooling.
+### Discovery vs explicit listing
+
+| `agent.yaml`                            | Loader behavior                                             |
+| --------------------------------------- | ----------------------------------------------------------- |
+| Omit `spec.skills` or leave `local: []` | Discover all `skills/**/SKILL.md` under the agent directory |
+| Set `spec.skills.local`                 | Load **only** the listed paths (explicit allowlist)         |
+
+Use explicit `local` paths when you need a subset of skills in a shared `skills/` tree. Omit the block when every package under `skills/` should be available. The [`skills` example](../../examples/skills/) demonstrates explicit listing; [`mcp`](../../examples/mcp/) and [`agent_platform`](../../examples/agent_platform/) rely on discovery.
 
 ## Progressive disclosure and the skill index
 

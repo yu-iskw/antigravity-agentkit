@@ -27,6 +27,21 @@ spec: # Runtime, wiring, governance
 
 The schema marks `metadata` and `spec` as required. Within `spec`, only `instructions` is required; other sections are optional.
 
+## Manifest vs filesystem
+
+AgentKit combines manifest references with conventional directory layout. Not every asset needs a manifest entry.
+
+| Asset               | Manifest required?               | Default path     | Auto-discover?                                   |
+| ------------------- | -------------------------------- | ---------------- | ------------------------------------------------ |
+| System instructions | Yes (`spec.instructions.system`) | —                | No                                               |
+| MCP                 | Yes (`spec.mcp` block)           | `mcp.json`       | No                                               |
+| Policies            | Yes (`spec.policies` block)      | `policies.yaml`  | No                                               |
+| Skills              | No                               | `skills/`        | Yes when `spec.skills.local` is omitted or empty |
+| Subagents           | No                               | `subagents/*.md` | Yes when `spec.subagents` is omitted or empty    |
+| Evals               | Yes (`spec.evals.files`)         | —                | No                                               |
+
+`spec.mcp.file` and `spec.policies.file` default to `mcp.json` and `policies.yaml` when those blocks are present. Governance features (MCP admission policy, default-deny policies, eval suites) stay **manifest-gated** so reviewers see an explicit opt-in. See [Skills and subagents](06-skills-and-subagents.md) for discovery vs explicit skill listing.
+
 ## metadata
 
 ```yaml

@@ -19,21 +19,10 @@ spec:
   instructions:
     system: SYSTEM.md
   mcp:
-    file: mcp.json
     admissionPolicy:
       allowedServers:
         - clock
-  skills:
-    local:
-      - skills/mcp-guide
-  subagents:
-    - name: time-checker
-      type: markdown
-      file: subagents/time-checker.md
-      tools:
-        - mcp.clock.get_utc_time
-  policies:
-    file: policies.yaml
+  policies: {}
   evals:
     files:
       - evals/smoke.yaml
