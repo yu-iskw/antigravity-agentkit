@@ -112,24 +112,6 @@ def delegation_tool_dict_from_ir(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def sdk_subagents_supported() -> bool:
-    """Return True when the installed SDK can accept static subagents on LocalAgentConfig."""
-    try:
-        import inspect
-
-        from google.antigravity import LocalAgentConfig, types
-    except ImportError:
-        return False
-    if getattr(types, "SubagentConfig", None) is None:
-        return False
-    signature = inspect.signature(LocalAgentConfig)
-    params = signature.parameters
-    accepts_kwargs = any(
-        parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in params.values()
-    )
-    return "subagents" in params or accepts_kwargs
-
-
 def delegation_tool_dict(metadata: DelegationToolMetadata) -> dict[str, Any]:
     """Return a serializable delegation tool definition."""
     return delegation_tool_dict_from_ir(
