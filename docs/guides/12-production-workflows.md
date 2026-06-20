@@ -137,7 +137,7 @@ AgentKit profiles encode how strict validation is. Use different profiles per en
 | Staging         | `prod-human-approval`            | `--level full`     |
 | Production      | `prod-readonly` or `prod-locked` | `--level full`     |
 
-`AgentProject.validate(production=True)` defaults to `profile=prod-readonly` and `level=full`.
+`AgentProject.validate(production=True)` defaults to `profile=prod-readonly` and `level=security` (runtime security without ship/cloud checks). Use `--level full` on the CLI or `validate_project(..., level="full")` before deploy when `deployment.yaml` is present.
 
 ### Promotion flow
 

@@ -31,6 +31,14 @@ SECRET_VALUE_PATTERNS = (
 VERSION_PIN_PATTERN = re.compile(r"@[0-9]+\.[0-9]+")
 
 
+def parse_mcp_dict(data: dict[str, Any]) -> McpConfig:
+    """Parse mcp.json content from a dictionary."""
+    try:
+        return McpConfig.from_dict(data)
+    except PydanticValidationError as exc:
+        raise ValidationError(f"Invalid MCP configuration: {exc}") from exc
+
+
 def parse_mcp_json(path: Path) -> McpConfig:
     """Parse mcp.json from disk."""
     if not path.is_file():
@@ -42,14 +50,6 @@ def parse_mcp_json(path: Path) -> McpConfig:
     if not isinstance(raw, dict):
         raise LoadError(f"MCP config must be a JSON object: {path}")
     return parse_mcp_dict(raw)
-
-
-def parse_mcp_dict(data: dict[str, Any]) -> McpConfig:
-    """Parse mcp.json content from a dictionary."""
-    try:
-        return McpConfig.from_dict(data)
-    except PydanticValidationError as exc:
-        raise ValidationError(f"Invalid MCP configuration: {exc}") from exc
 
 
 def _looks_like_secret(key: str, value: str) -> bool:

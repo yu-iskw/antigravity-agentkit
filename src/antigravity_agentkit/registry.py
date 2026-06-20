@@ -178,11 +178,14 @@ def publish_skill(
     if not skill_root.is_dir():
         raise RegistryError(f"Skill directory not found: {skill_root}")
 
+    out_dir = Path(output_dir or skill_root.parent / ".build" / "skills").resolve()
+    if out_dir == skill_root or out_dir.is_relative_to(skill_root):
+        raise RegistryError(f"Skill output directory cannot be inside the skill package: {out_dir}")
+
     skill = load_skill_directory(skill_root)
     validate_skill_name(skill.name)
     skill_files = _iter_skill_files(skill_root)
 
-    out_dir = Path(output_dir or skill_root.parent / ".build" / "skills")
     out_dir.mkdir(parents=True, exist_ok=True)
     archive_path = out_dir / f"{skill.name}.zip"
 

@@ -92,10 +92,14 @@ def _has_gcp_credentials() -> bool:
         return True
     try:
         import google.auth  # type: ignore[import-untyped]
+        from google.auth.exceptions import DefaultCredentialsError  # type: ignore[import-untyped]
+    except ImportError:
+        return False
 
+    try:
         google.auth.default()
         return True
-    except (ImportError, OSError, ValueError):
+    except (DefaultCredentialsError, OSError, ValueError):
         return False
 
 

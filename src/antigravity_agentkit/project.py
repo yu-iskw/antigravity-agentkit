@@ -57,7 +57,7 @@ class AgentProject:
         effective_profile: ValidationProfile = profile or (  # type: ignore[assignment]
             "prod-readonly" if production else "dev-restricted"
         )
-        effective_level: ValidationLevel = "full" if production else level  # type: ignore[assignment]
+        effective_level: ValidationLevel = "security" if production else level  # type: ignore[assignment]
         assert_valid_project_data(
             self.root,
             self.data,

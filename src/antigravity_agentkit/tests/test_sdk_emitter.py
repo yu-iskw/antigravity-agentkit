@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from antigravity_agentkit.compiler import compile_agent_config, compile_to_sdk_config
+from antigravity_agentkit.exceptions import CompilationError
 
 
 def test_compile_to_sdk_config_disables_subagents_by_default(
@@ -32,19 +34,66 @@ def test_compile_to_sdk_config_includes_subagents_and_capabilities(
     compiled = compile_agent_config(subagents_agent_dir)
 
     try:
-        sdk_config = compile_to_sdk_config(compiled)
-    except Exception as exc:
-        if "google-antigravity is not installed" in str(exc):
-            pytest.skip("google-antigravity not installed")
-        raise
+        from google.antigravity import types
+    except ImportError:
+        pytest.skip("google-antigravity not installed")
 
-    assert sdk_config is not None
-    assert sdk_config.capabilities is not None
+    if getattr(types, "SubagentConfig", None) is None:
+        sdk_config = compile_to_sdk_config(compiled)
+        assert sdk_config.capabilities.enable_subagents is True
+        assert not getattr(sdk_config, "subagents", None)
+        return
+
+    sdk_config = compile_to_sdk_config(compiled)
     assert sdk_config.capabilities.enable_subagents is True
-    sdk_subagents = getattr(sdk_config, "subagents", None)
-    if sdk_subagents:
-        assert len(sdk_subagents) == 1
-        assert sdk_subagents[0].name == "proofreader"
+    assert len(sdk_config.subagents) == 1
+    assert sdk_config.subagents[0].name == "proofreader"
+
+
+def test_compile_to_sdk_config_rejects_constructor_without_subagents(
+    subagents_agent_dir: Path,
+) -> None:
+    """SDK constructors without a subagents parameter fail with an actionable error."""
+    compiled = compile_agent_config(subagents_agent_dir)
+
+    def local_config(*, system_instructions: str, vertex: bool) -> None:
+        del system_instructions, vertex
+
+    with (
+        patch("antigravity_agentkit.sdk.sdk_subagents_supported", return_value=True),
+        patch(
+            "antigravity_agentkit.sdk.try_compile_sdk_subagents",
+            return_value=[object()],
+        ),
+        patch("antigravity_agentkit.sdk.get_local_agent_config_class", return_value=local_config),
+        pytest.raises(CompilationError, match="cannot accept static subagents"),
+    ):
+        compile_to_sdk_config(compiled)
+
+
+def test_compile_to_sdk_config_emits_supported_subagents(subagents_agent_dir: Path) -> None:
+    """Compatible SDK constructors receive compiled static subagents."""
+    compiled = compile_agent_config(subagents_agent_dir)
+    received: dict[str, object] = {}
+
+    class FakeSubagentConfig:
+        def __init__(self, **kwargs: object) -> None:
+            self.name = kwargs["name"]
+
+    def local_config(**kwargs: object) -> dict[str, object]:
+        received.update(kwargs)
+        return received
+
+    with (
+        patch("antigravity_agentkit.sdk.sdk_subagents_supported", return_value=True),
+        patch("google.antigravity.types.SubagentConfig", FakeSubagentConfig, create=True),
+        patch("antigravity_agentkit.sdk.get_local_agent_config_class", return_value=local_config),
+    ):
+        sdk_config = compile_to_sdk_config(compiled)
+
+    subagents = sdk_config["subagents"]
+    assert isinstance(subagents, list)
+    assert subagents[0].name == "proofreader"
 
 
 def test_compile_to_sdk_config_http_mcp_server(hello_world_agent_dir: Path) -> None:

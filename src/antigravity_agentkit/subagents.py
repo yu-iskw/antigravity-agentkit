@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from antigravity_agentkit.exceptions import LoadError, ValidationError
+from antigravity_agentkit.exceptions import CompilationError, LoadError, ValidationError
 from antigravity_agentkit.paths import resolve_project_path
 from antigravity_agentkit.schema.agent import SubagentSpec
 from antigravity_agentkit.schema.subagents import DelegationToolMetadata, LoadedSubagent
@@ -156,18 +156,23 @@ def compile_subagent_ir(subagents: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def try_compile_sdk_subagents(subagent_ir: list[dict[str, Any]]) -> list[Any]:
-    """Compile subagent IR to SDK SubagentConfig objects when SDK is available."""
+    """Compile subagent IR to SDK SubagentConfig objects or fail explicitly."""
     if not subagent_ir:
         return []
 
     try:
         from google.antigravity import types
-    except ImportError:
-        return []
+    except ImportError as exc:
+        raise CompilationError(
+            "The installed google-antigravity SDK cannot load static subagent support."
+        ) from exc
 
     subagent_config = getattr(types, "SubagentConfig", None)
     if subagent_config is None:
-        return []
+        raise CompilationError(
+            "The installed google-antigravity SDK does not support static subagents; "
+            "install a version that provides google.antigravity.types.SubagentConfig."
+        )
 
     sdk_subagents: list[Any] = []
     for entry in subagent_ir:

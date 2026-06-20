@@ -55,12 +55,9 @@ def _mock_agent_response(project: AgentProject, case: EvalCase) -> tuple[str, li
     instructions = project.data.system_instructions.lower()
     response_parts = [f"Processing request: {case.input}"]
 
-    for token in re.findall(r"[a-z]{4,}", case.input.lower()):
+    for token in re.findall(r"[a-z]{3,}", case.input.lower()):
         if token in instructions:
             response_parts.append(token)
-
-    if case.expected.must_mention:
-        response_parts.extend(case.expected.must_mention)
 
     response_parts.append("dataset table metadata summary")
     response_text = " ".join(response_parts)

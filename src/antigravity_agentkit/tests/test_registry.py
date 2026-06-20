@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from antigravity_agentkit.exceptions import RegistryError
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.registry import (
     PROVENANCE_ENV_GIT_SHA,
@@ -112,3 +116,23 @@ def test_publish_skill_packages_greeting_helper(skills_agent_dir: Path, tmp_path
         result["registryRef"]
         == f"projects/{TEST_GCP_PROJECT}/locations/{TEST_GCP_LOCATION}/skills/greeting-helper"
     )
+
+
+def test_publish_skill_rejects_output_inside_package(skills_agent_dir: Path) -> None:
+    """Skill archives cannot be written beneath the source package."""
+    skill_dir = skills_agent_dir / "skills" / "greeting-helper"
+
+    with pytest.raises(RegistryError, match="cannot be inside"):
+        publish_skill(skill_dir, output_dir=skill_dir / "out")
+
+
+def test_publish_skill_repeat_is_stable(skills_agent_dir: Path, tmp_path: Path) -> None:
+    """Repeated external publishing does not include a previous archive."""
+    skill_dir = skills_agent_dir / "skills" / "greeting-helper"
+
+    first = publish_skill(skill_dir, output_dir=tmp_path)
+    second = publish_skill(skill_dir, output_dir=tmp_path)
+
+    assert first["sha256"] == second["sha256"]
+    with zipfile.ZipFile(second["archivePath"]) as archive:
+        assert archive.namelist() == ["SKILL.md"]

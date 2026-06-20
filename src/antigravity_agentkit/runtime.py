@@ -5,6 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from antigravity_agentkit.operator_auth import (
+    operator_credentials_context,
+    resolve_impersonate_target,
+)
 from antigravity_agentkit.sdk import compile_sdk_policies
 
 if TYPE_CHECKING:
@@ -54,13 +58,16 @@ class RuntimeAgent:
         *,
         production: bool = False,
         interactive: bool = False,
+        impersonate_service_account: str | None = None,
     ) -> str:
         """Run a single chat turn and return aggregated assistant text."""
-        agent = self._project.create_agent(production=production, interactive=interactive)
-        async with agent:
-            response = await agent.chat(prompt)
-            # Drain before session exit; ChatResponse.text() hangs after __aexit__.
-            return await chat_response_text(response)
+        impersonate = resolve_impersonate_target(flag=impersonate_service_account)
+        with operator_credentials_context(impersonate):
+            agent = self._project.create_agent(production=production, interactive=interactive)
+            async with agent:
+                response = await agent.chat(prompt)
+                # Drain before session exit; ChatResponse.text() hangs after __aexit__.
+                return await chat_response_text(response)
 
 
 __all__ = ["RuntimeAgent", "chat_response_text", "compile_sdk_policies"]

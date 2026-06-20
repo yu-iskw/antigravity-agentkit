@@ -62,7 +62,7 @@ print(project.data.system_instructions[:200])
 # Development defaults: level="schema", profile="dev-restricted"
 project.validate()
 
-# Production gate (level="full", profile="prod-readonly")
+# Production gate (level="security", profile="prod-readonly"; implement path, no deployment.yaml required)
 project.validate(production=True)
 
 # Explicit control

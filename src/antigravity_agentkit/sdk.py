@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -9,7 +10,7 @@ from antigravity_agentkit.capabilities import try_compile_sdk_capabilities
 from antigravity_agentkit.exceptions import CompilationError, PolicyError
 from antigravity_agentkit.mcp import try_compile_mcp_sdk_objects_from_compiled
 from antigravity_agentkit.schema.agent import CompiledAgentConfig
-from antigravity_agentkit.subagents import try_compile_sdk_subagents
+from antigravity_agentkit.subagents import sdk_subagents_supported, try_compile_sdk_subagents
 
 ANTIGRAVITY_INSTALL_HINT = (
     "google-antigravity is not installed; install with "
@@ -163,10 +164,19 @@ def compile_to_sdk_config_from_compiled(
     if capabilities is not None:
         kwargs["capabilities"] = capabilities
 
-    if compiled.capabilities.get("enableSubagents"):
+    if compiled.capabilities.get("enableSubagents") and sdk_subagents_supported():
         sdk_subagents = try_compile_sdk_subagents(compiled.subagents)
-        if sdk_subagents:
-            kwargs["subagents"] = sdk_subagents
+        signature = inspect.signature(local_agent_config)
+        parameters = signature.parameters.values()
+        accepts_subagents = "subagents" in signature.parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters
+        )
+        if not accepts_subagents:
+            raise CompilationError(
+                "The installed google-antigravity SDK cannot accept static subagents; "
+                "install a compatible SDK version."
+            )
+        kwargs["subagents"] = sdk_subagents
 
     if compiled.policies:
         kwargs["policies"] = compile_sdk_policies(

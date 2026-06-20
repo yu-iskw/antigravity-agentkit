@@ -47,6 +47,13 @@ def test_compile_mcp_example(mcp_agent_dir: Path) -> None:
     assert compiled.capabilities["enableSubagents"] is True
 
 
+def test_compile_production_does_not_require_deployment(mcp_agent_dir: Path) -> None:
+    """Production compilation validates runtime security without ship configuration."""
+    compiled = compile_agent_config(mcp_agent_dir, production=True)
+
+    assert compiled.model == "gemini-3.1-flash-lite"
+
+
 def test_compile_subagents_example(subagents_agent_dir: Path) -> None:
     """Subagents example compiles subagent IR and enables subagents."""
     compiled = compile_agent_config(subagents_agent_dir)

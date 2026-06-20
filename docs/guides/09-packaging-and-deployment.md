@@ -242,6 +242,27 @@ Deploy detects credentials via:
 
 For local dry-run you do not need credentials. For future live deploy, use a **deployer** service account separate from the agent **runtime** `serviceAccount` in `deployment.yaml`. See [Policies and governance](./07-policies-and-governance.md) and [Production workflows](./12-production-workflows.md).
 
+### Operator authentication (local `run`)
+
+`deployment.yaml` `spec.serviceAccount` is the **runtime** identity attached by Agent Platform when deployed. It is not used as caller credentials for local development.
+
+For local `run` with Vertex, impersonate a service account at the **operator** layer:
+
+| Task                    | How to authenticate                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local `run` with Vertex | `--impersonate-service-account` or `AGK_IMPERSONATE_SERVICE_ACCOUNT`, or preconfigure ADC with `gcloud auth application-default login --impersonate-service-account=RUNTIME_SA` |
+| CI deploy (future)      | Deployer SA via Workload Identity Federation or `google-github-actions/auth` — not the runtime SA                                                                               |
+| Runtime on platform     | `deployment.serviceAccount` — no app-level impersonation                                                                                                                        |
+
+```bash
+antigravity-agentkit run examples/agent_platform \
+  --prompt "Hello" \
+  --production \
+  --impersonate-service-account platform-assistant@demo-project.iam.gserviceaccount.com
+```
+
+Impersonation is never written into packaged output or `deployment-config.json`. The credential patch applies only for the duration of a single `run` / `run_chat` call and is not thread-safe for concurrent runs.
+
 ## Typical workflow
 
 ```mermaid

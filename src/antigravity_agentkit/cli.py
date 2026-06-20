@@ -17,6 +17,7 @@ from antigravity_agentkit.deploy import (
 )
 from antigravity_agentkit.evals import assert_evals_passed, run_evals
 from antigravity_agentkit.exceptions import AgentKitError, ValidationError
+from antigravity_agentkit.operator_auth import IMPERSONATE_ENV
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.registry import (
     build_agent_registry_metadata,
@@ -182,6 +183,12 @@ def run_cmd(
         "--interactive/--no-interactive",
         help="Prompt for ask_user policy approvals (default: deny).",
     ),
+    impersonate_service_account: str | None = typer.Option(
+        None,
+        "--impersonate-service-account",
+        envvar=IMPERSONATE_ENV,
+        help="Impersonate this SA for Vertex/API calls (operator auth only).",
+    ),
 ) -> None:
     """Run a local agent chat turn."""
     import asyncio
@@ -193,6 +200,7 @@ def run_cmd(
                 prompt,
                 production=production,
                 interactive=interactive,
+                impersonate_service_account=impersonate_service_account,
             )
         )
 

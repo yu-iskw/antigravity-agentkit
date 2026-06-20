@@ -24,6 +24,26 @@ def test_run_evals_mock_mode_passes_mcp_smoke(mcp_agent_dir: Path) -> None:
     assert result.cases[0].mock_tools == ["mcp.clock.get_utc_time"]
 
 
+def test_mock_eval_fails_for_missing_required_phrase(mcp_agent_dir: Path) -> None:
+    """Mock responses do not copy must-mention expectations into their output."""
+    project = AgentProject.load(mcp_agent_dir)
+    entry = project.data.evals[0]
+    raw = dict(entry["raw"])
+    raw["cases"] = [
+        {
+            "name": "missing-phrase",
+            "input": "What is the current UTC time?",
+            "expected": {"mustMention": ["unattainable-phrase"]},
+        }
+    ]
+    project.data.evals = [{**entry, "raw": raw}]
+
+    result = run_evals(project)
+
+    assert result.failed == 1
+    assert "unattainable-phrase" in result.cases[0].failures[0]
+
+
 def test_run_evals_suite_filter(mcp_agent_dir: Path) -> None:
     """Suite filter matches by filename stem."""
     project = AgentProject.load(mcp_agent_dir)
