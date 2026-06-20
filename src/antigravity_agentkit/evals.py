@@ -198,24 +198,11 @@ async def _run_live_cases(
     return results
 
 
-def _run_case(
-    project: AgentProject,
-    suite_path: str,
-    case: EvalCase,
-    *,
-    mode: EvalRunMode,
-) -> EvalCaseResult:
-    """Dispatch eval case execution by mode (mock only; live uses batch runner)."""
-    if mode == "mock":
-        return _run_case_mock(project, suite_path, case)
-    raise EvalError(f"Unsupported eval mode for single-case runner: {mode}")
-
-
 def run_evals(  # noqa: PLR0913
     project: AgentProject,
     suite_filter: str | None = None,
     *,
-    mode: EvalRunMode | None = None,
+    mode: EvalRunMode = "mock",
     resource_name: str | None = None,
     project_id: str | None = None,
     location: str | None = None,
@@ -268,8 +255,7 @@ def run_evals(  # noqa: PLR0913
 
         raw = entry.get("raw", entry.get("suite", {}))
         suite = EvalSuite.from_dict(raw)
-        suite_mode: EvalRunMode = mode or suite.mode
-        if suite_mode == "live":
+        if mode == "live":
             live_items = [(suite_path, case) for case in suite.cases]
             case_results = asyncio.run(_run_live_cases(project, live_items))
             for case_result in case_results:
@@ -281,7 +267,7 @@ def run_evals(  # noqa: PLR0913
                     result.failed += 1
             continue
         for case in suite.cases:
-            case_result = _run_case(project, suite_path, case, mode=suite_mode)
+            case_result = _run_case_mock(project, suite_path, case)
             result.cases.append(case_result)
             result.total += 1
             if case_result.passed:

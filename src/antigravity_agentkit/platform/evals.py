@@ -13,6 +13,19 @@ from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.evals import EvalCase, EvalSuite
 
 _DEFAULT_PLATFORM_METRIC = "general_quality_v1"
+_JUDGE_PROMPT_KEY = "judgePromptTemplate"
+_JUDGE_MODEL_KEY = "judgeModel"
+
+
+def _case_has_judge_export(case: dict[str, Any]) -> bool:
+    return _JUDGE_PROMPT_KEY in case or _JUDGE_MODEL_KEY in case
+
+
+def _judge_export_error(case_name: str) -> EvalError:
+    return EvalError(
+        f"Platform eval case {case_name!r} uses judge "
+        "configuration, which is currently supported for dataset export only."
+    )
 
 
 def _export_case(suite_path: str, case: EvalCase) -> dict[str, Any]:
@@ -28,9 +41,9 @@ def _export_case(suite_path: str, case: EvalCase) -> dict[str, Any]:
     if case.expected.threshold is not None:
         exported["threshold"] = case.expected.threshold
     if case.judge.prompt_template:
-        exported["judgePromptTemplate"] = case.judge.prompt_template
+        exported[_JUDGE_PROMPT_KEY] = case.judge.prompt_template
     if case.judge.judge_model:
-        exported["judgeModel"] = case.judge.judge_model
+        exported[_JUDGE_MODEL_KEY] = case.judge.judge_model
     return exported
 
 
@@ -132,6 +145,14 @@ def run_platform_eval_suite(
     resource_name: str,
 ) -> dict[str, Any]:
     """Run Platform eval inference + grading against a deployed agent."""
+    cases = dataset.get("cases", [])
+    if not cases:
+        raise EvalError("Platform eval dataset has no cases.")
+    for case in cases:
+        if _case_has_judge_export(case):
+            case_name = case.get("name", "<unknown>")
+            raise _judge_export_error(str(case_name))
+
     try:
         import vertexai  # type: ignore[import-untyped]
     except ImportError as exc:
@@ -141,10 +162,6 @@ def run_platform_eval_suite(
 
     client = vertexai.Client(project=project_id, location=location)
     evals_api = client.evals
-
-    cases = dataset.get("cases", [])
-    if not cases:
-        raise EvalError("Platform eval dataset has no cases.")
 
     try:
         pandas = importlib.import_module("pandas")

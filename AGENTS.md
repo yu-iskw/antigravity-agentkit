@@ -163,10 +163,11 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 ## Learned User Preferences
 
 - Keep plans and implementations minimal; stay within the stated milestone (e.g. P0, M1) and avoid over-engineering beyond it.
-- Spawn parallel subagents for exploration, simplify/review passes, and verification instead of doing those sequentially in one agent.
+- Spawn parallel subagents as much as possible—for exploration, simplify/review passes, verification, and CI diagnosis—instead of doing those sequentially in one agent.
 - When implementing from an attached plan, do not edit the plan file itself.
 - Prefer diagram-backed plans when making architecture or separation decisions.
 - Commit and push only when explicitly requested.
+- Use `/loop-on-ci` with `gh pr checks` as the CI source of truth when watching a PR until required checks pass.
 
 ## Learned Workspace Facts
 
@@ -174,12 +175,10 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 - **Implement** lifecycle: `agent.yaml` plus assets → load, validate, compile to `CompiledAgentIR`, run, eval (`AgentProject`); no `deployment.yaml` required.
 - **Ship** lifecycle: optional `deployment.yaml` is required for `package`, `deploy`, and `register`; packaging lives in `antigravity_agentkit.deploy` (requires `[gcp]` extra), not `AgentProject`.
 - `spec.deployment` was removed from `agent.yaml` (hard break); infra and deploy target belong in `deployment.yaml` only.
-- Bundled implement-only examples (`hello_world`, `skills`, `subagents`, `mcp`) omit `deployment.yaml`; `examples/agent_platform/` is the ship-ready reference with `deployment.yaml` and package/deploy/register dry-run.
+- Bundled implement-only examples (`hello_world`, `skills`, `subagents`, `mcp`) omit `deployment.yaml`; `examples/agent_platform/` is ship-ready; `examples/python_embedding/` shows Python API tiers for app embedding (see `docs/guides/11-python-api.md`).
 - Local ship verification: `bash dev/test_agent_platform.sh` exercises the full `examples/agent_platform/` workflow and is used by `.github/workflows/agent_ship.yml`.
-- Example default model is `gemini-3.1-flash-lite`; live `run` in `dev/test_examples.sh` needs `GEMINI_API_KEY` or `GOOGLE_API_KEY` and `pip install 'antigravity-agentkit[antigravity]'`.
 - **Deploy targets (RFC 0002):** canonical `agent-platform-runtime` (CLI alias `agent-platform`) emits Agent Platform Runtime artifacts and supports **live deploy** via native SDK (M3); canonical `managed-agents-api` (CLI alias `gemini-api`) emits Managed Agents API contract; `ai-studio` and `cloud-run` remain schema stubs.
-- **M3 platform ops:** live `deploy`, `register --live`, `publish`, `publish-skill --live`, `rollback`, `eval --mode platform`, OTEL via `deployment.yaml` `spec.observability`; see [ADR 0004](docs/adr/0004-native-platform-operations.md). Terraform/BQ bucket provisioning remains platform-team infra.
-- **Optional extras:** base core (no SDK/GCP) / `[antigravity]` for `run`/`chat` / `[gcp]` for ship commands / `[all]` for both; core-only CI (`test_core_only.yml`) validates compile path without SDK.
-- SDK runtime assembly (`[antigravity]` extra) wires capabilities, MCP, subagent `SubagentConfig`, `skills_paths`, and `run --interactive` HITL from `CompiledAgentIR`; `read_skill` remains a lightweight fallback.
-- SDK default denies `run_command`; skill packages with `scripts/` need an explicit `policies.yaml` allow entry; Agent Platform Runtime sandbox for skill scripts is deferred (ADR 0003 Tier C).
-- CLI `chat` is the multi-turn local REPL; `run --interactive` enables HITL tool approval only, not ongoing chat.
+- **M3 platform ops:** live `deploy`, `register --live`, `publish`, `publish-skill --live`, `rollback`, `eval --mode platform`, OTEL via `deployment.yaml` `spec.observability`; native `vertexai` clients in `platform/` (Tier D), not Agents CLI subprocess; rollback archives packages under `.build/.deploy/<agent>/revisions/` and persists `deploy-state.json` outside rebuilt `.build/<agent>/`; see [ADR 0004](docs/adr/0004-native-platform-operations.md).
+- **Optional extras:** base core (no SDK/GCP) / `[antigravity]` for `run`/`chat` / `[gcp]` for ship commands / `[all]` for both; core-only CI (`test_core_only.yml`) validates compile path without SDK; CI Pyright with `[gcp]` needs `typings/vertexai/__init__.pyi` when `google-cloud-aiplatform` is installed.
+- AgentKit is a Python library for embedding agents (`AgentProject`, `RuntimeAgent`, `create_agent_from_ir`) in Slack bots, FastAPI apps, workers, and CLIs—not only a CLI and packaging tool.
+- SDK runtime assembly (`[antigravity]` extra) wires capabilities, MCP, subagent `SubagentConfig`, `skills_paths`, and `run --interactive` HITL from `CompiledAgentIR`; `read_skill` remains a lightweight fallback; default denies `run_command` (skill `scripts/` need explicit `policies.yaml` allow); `chat` is the multi-turn local REPL; Agent Platform Runtime sandbox for skill scripts is deferred (ADR 0003 Tier C).

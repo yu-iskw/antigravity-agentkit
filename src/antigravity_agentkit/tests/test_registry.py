@@ -245,31 +245,41 @@ def test_publish_skill_merges_live_revision_locks(
     assert all(entry["sha256"].startswith("sha256:") for entry in lock["skills"])
 
 
-def test_publish_skill_does_not_overwrite_malformed_lock(
+@pytest.mark.parametrize(
+    ("lock_yaml", "error_match"),
+    [
+        ("version: 2\nskills: []\n", "version: 1"),
+        (
+            "version: 1\nskills:\n  - name: greeting-helper\n  - name: greeting-helper\n",
+            "non-empty and unique",
+        ),
+    ],
+)
+def test_publish_skill_rejects_invalid_lock_before_publish(
     skills_agent_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    lock_yaml: str,
+    error_match: str,
 ) -> None:
-    """Malformed existing lock data is preserved for manual recovery."""
+    """Invalid existing lock data is preserved and blocks packaging and registry calls."""
     agent_root = tmp_path / "agent"
     shutil.copytree(skills_agent_dir, agent_root)
     lock_path = agent_root / "skills.lock"
-    original = "version: 2\nskills: []\n"
-    lock_path.write_text(original, encoding="utf-8")
-    registry_name = (
-        f"projects/{TEST_GCP_PROJECT}/locations/{TEST_GCP_LOCATION}/skills/greeting-helper"
-    )
+    lock_path.write_text(lock_yaml, encoding="utf-8")
+    publish_calls = 0
+
+    def fake_publish_skill_live(**_kwargs: object) -> dict[str, object]:
+        nonlocal publish_calls
+        publish_calls += 1
+        return {}
+
     monkeypatch.setattr(
         "antigravity_agentkit.platform.registry.publish_skill_live",
-        lambda **kwargs: {
-            "status": "published",
-            "registryRef": registry_name,
-            "revision": f"{registry_name}/revisions/rev-1",
-            "sha256": kwargs["sha256"],
-        },
+        fake_publish_skill_live,
     )
 
-    with pytest.raises(RegistryError, match="version: 1"):
+    with pytest.raises(RegistryError, match=error_match):
         publish_skill(
             agent_root / "skills" / "greeting-helper",
             output_dir=tmp_path / "archives",
@@ -279,4 +289,6 @@ def test_publish_skill_does_not_overwrite_malformed_lock(
             write_lock=True,
         )
 
-    assert lock_path.read_text(encoding="utf-8") == original
+    assert lock_path.read_text(encoding="utf-8") == lock_yaml
+    assert publish_calls == 0
+    assert not (tmp_path / "archives").exists()

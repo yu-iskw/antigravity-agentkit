@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from antigravity_agentkit.exceptions import DeployError
 from antigravity_agentkit.platform.client import (
@@ -24,6 +24,9 @@ from antigravity_agentkit.platform.runtime_adapter import (
     PLATFORM_ENTRYPOINT_OBJECT,
 )
 from antigravity_agentkit.registry.metadata import PROVENANCE_ENV_GIT_SHA
+
+_USE_ENV_GIT_SHA = "__use_env_git_sha__"
+GitShaArg = str | None | Literal["__use_env_git_sha__"]
 
 _MAX_PACKAGE_BYTES = 8 * 1024 * 1024
 
@@ -117,6 +120,7 @@ def create_or_update_agent_engine(  # noqa: PLR0913
     client: AgentEngineClient | None = None,
     mcp_server_names: list[str] | None = None,
     state_package_dir: Path | None = None,
+    git_sha: GitShaArg = _USE_ENV_GIT_SHA,
 ) -> dict[str, Any]:
     """Create or update an Agent Runtime reasoning engine."""
     canonical_package_dir = state_package_dir or package_dir
@@ -143,12 +147,14 @@ def create_or_update_agent_engine(  # noqa: PLR0913
     if not resolved_name:
         raise DeployError("Platform deploy did not return a resource name.")
 
-    git_sha = os.environ.get(PROVENANCE_ENV_GIT_SHA)
+    resolved_git_sha = (
+        os.environ.get(PROVENANCE_ENV_GIT_SHA) if git_sha == _USE_ENV_GIT_SHA else git_sha
+    )
     state = record_deploy(
         canonical_package_dir,
         resource_name=resolved_name,
         package_digest=digest,
-        git_sha=git_sha,
+        git_sha=resolved_git_sha,
         deployed_package_dir=archived_package_dir,
     )
 

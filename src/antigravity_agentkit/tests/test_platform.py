@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
 
+import pytest
+
+from antigravity_agentkit.exceptions import EvalError
 from antigravity_agentkit.platform.agent_engines import (
     build_agent_engine_api_config,
     create_or_update_agent_engine,
@@ -29,9 +31,6 @@ from antigravity_agentkit.platform.rollback import rollback_agent_engine
 from antigravity_agentkit.platform.runtime_adapter import PLATFORM_ENTRYPOINT_MODULE
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.deployment import DeploymentManifest
-
-if TYPE_CHECKING:
-    import pytest
 
 _MAX_DEPLOY_HISTORY = 10
 _RETAINED_DEPLOY_REVISIONS = _MAX_DEPLOY_HISTORY + 1
@@ -165,7 +164,10 @@ def test_record_deploy_and_rollback_target(tmp_path: Path) -> None:
     assert target.package_digest == "sha256:aaa"
 
 
-def test_live_deploy_archives_revisions_outside_rebuilt_package(tmp_path: Path) -> None:
+def test_live_deploy_archives_revisions_outside_rebuilt_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Repeated deploys retain immutable source packages and durable history."""
     package_dir = tmp_path / ".build" / "demo"
     package_dir.mkdir(parents=True)
@@ -193,6 +195,7 @@ def test_live_deploy_archives_revisions_outside_rebuilt_package(tmp_path: Path) 
             encoding="utf-8",
         )
 
+    monkeypatch.setenv("AGK_GIT_SHA", "current-deploy")
     write_package("a" * 64, "first\n")
     first = create_or_update_agent_engine(
         {}, package_dir, project_id="p", location="l", client=FakeClient()
@@ -215,6 +218,7 @@ def test_live_deploy_archives_revisions_outside_rebuilt_package(tmp_path: Path) 
 
     state = load_deploy_state(package_dir)
     assert state is not None
+    assert state.git_sha == "current-deploy"
     assert deploy_state_path(package_dir).is_file()
     assert len(state.history) == 1
     assert Path(state.history[0].package_dir) == first_archive
@@ -244,7 +248,16 @@ def test_deploy_revision_retention_keeps_current_plus_ten(tmp_path: Path) -> Non
     assert len(revisions) == _RETAINED_DEPLOY_REVISIONS
 
 
-def test_rollback_uses_archived_revision_and_records_new_current(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("target_git_sha", "rollback_target"),
+    [("first", "first"), (None, "0")],
+)
+def test_rollback_uses_archived_revision_and_records_new_current(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    target_git_sha: str | None,
+    rollback_target: str,
+) -> None:
     """Rollback deploys the selected immutable package and advances state history."""
     package_dir = tmp_path / ".build" / "demo"
     first_digest = "a" * 64
@@ -264,7 +277,7 @@ def test_rollback_uses_archived_revision_and_records_new_current(tmp_path: Path)
         package_dir,
         resource_name="projects/p/locations/l/reasoningEngines/1",
         package_digest=f"sha256:{first_digest}",
-        git_sha="first",
+        git_sha=target_git_sha,
         deployed_package_dir=first_archive,
     )
     record_deploy(
@@ -275,6 +288,7 @@ def test_rollback_uses_archived_revision_and_records_new_current(tmp_path: Path)
         deployed_package_dir=second_archive,
     )
     calls: list[dict[str, object]] = []
+    monkeypatch.setenv("AGK_GIT_SHA", "current-environment")
 
     class FakeClient:
         def create(self, *, config: dict[str, object]) -> dict[str, str]:
@@ -293,7 +307,7 @@ def test_rollback_uses_archived_revision_and_records_new_current(tmp_path: Path)
         package_dir,
         project_id="p",
         location="l",
-        target="first",
+        target=rollback_target,
         client=FakeClient(),
     )
 
@@ -302,6 +316,7 @@ def test_rollback_uses_archived_revision_and_records_new_current(tmp_path: Path)
     state = load_deploy_state(package_dir)
     assert state is not None
     assert state.package_digest == f"sha256:{first_digest}"
+    assert state.git_sha == target_git_sha
     assert state.history[0].package_digest == f"sha256:{second_digest}"
 
 
@@ -321,6 +336,51 @@ def test_export_platform_dataset_honors_suite_filter(
 
     assert not export_platform_dataset(project, suite_filter="missing")["cases"]
     assert export_platform_dataset(project, suite_filter="smoke")["cases"]
+
+
+def test_platform_judge_fields_are_export_only(
+    repo_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Judge settings survive export but fail before a Vertex client is constructed."""
+    project = AgentProject.load(repo_root / "examples" / "agent_platform")
+    entry = project.data.evals[0]
+    raw = dict(entry["raw"])
+    raw["cases"] = [
+        {
+            "name": "custom-judge",
+            "input": "hello",
+            "judge": {
+                "promptTemplate": "Score this response",
+                "judgeModel": "gemini-judge",
+            },
+        }
+    ]
+    project.data.evals = [{**entry, "raw": raw}]
+    dataset = export_platform_dataset(project)
+    client_calls = 0
+
+    def fail_client(**_kwargs: object) -> object:
+        nonlocal client_calls
+        client_calls += 1
+        raise AssertionError("Vertex client must not be constructed")
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "vertexai",
+        SimpleNamespace(Client=fail_client),
+    )
+
+    assert dataset["cases"][0]["judgePromptTemplate"] == "Score this response"
+    assert dataset["cases"][0]["judgeModel"] == "gemini-judge"
+    with pytest.raises(EvalError, match="custom-judge.*export only"):
+        run_platform_eval_suite(
+            dataset,
+            project_id="p",
+            location="l",
+            resource_name="projects/p/locations/l/reasoningEngines/1",
+        )
+    assert client_calls == 0
 
 
 def test_run_platform_eval_suite_maps_sdk_results(

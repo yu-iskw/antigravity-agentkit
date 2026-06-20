@@ -45,6 +45,7 @@ def rollback_agent_engine(  # noqa: PLR0913
         resource_name=resource_name,
         client=client,
         state_package_dir=package_dir,
+        git_sha=record.git_sha,
     )
     result["status"] = "rolled_back"
     result["rollbackTarget"] = target

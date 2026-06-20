@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-EvalMode = Literal["mock", "live", "platform"]
 
 
 class EvalJudge(BaseModel):
@@ -16,6 +14,10 @@ class EvalJudge(BaseModel):
 
     prompt_template: str | None = Field(default=None, alias="promptTemplate")
     judge_model: str | None = Field(default=None, alias="judgeModel")
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.prompt_template or self.judge_model)
 
 
 class EvalExpected(BaseModel):
@@ -60,6 +62,10 @@ class EvalCase(BaseModel):
     tools: EvalToolConstraints = Field(default_factory=EvalToolConstraints)
     judge: EvalJudge = Field(default_factory=EvalJudge)
 
+    @property
+    def uses_custom_judge(self) -> bool:
+        return self.judge.is_configured
+
     @field_validator("name")
     @classmethod
     def validate_name_not_blank(cls, value: str) -> str:
@@ -77,7 +83,6 @@ class EvalSuite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: int = Field(..., ge=1)
-    mode: EvalMode = "mock"
     cases: list[EvalCase] = Field(..., min_length=1)
 
     @field_validator("cases")

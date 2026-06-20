@@ -134,6 +134,11 @@ Each case defaults to `general_quality_v1`. An explicit `threshold` fails the ca
 is lower; without a threshold, a valid score passes and SDK or metric errors fail. `--suite` filters
 the exported cases before any Platform request.
 
+Execution mode is not part of eval suite YAML. Mock mode is the default, and live or Platform
+execution must be selected explicitly with `--mode` or the Python `mode` argument. The optional
+`judge.promptTemplate` and `judge.judgeModel` fields are preserved by `eval-export` for external
+dataset consumers; the built-in Platform runner currently rejects cases containing either field.
+
 ## What AgentKit does and does not do
 
 | In scope (AgentKit)                         | Out of scope (platform-team infra)               |

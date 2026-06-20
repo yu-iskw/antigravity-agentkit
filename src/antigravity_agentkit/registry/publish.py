@@ -71,6 +71,12 @@ def _load_skills_lock(lock_path: Path) -> list[dict[str, Any]]:
     return skills
 
 
+def _read_skills_lock(skill_root: Path) -> tuple[Path, list[dict[str, Any]]]:
+    agent_root = _find_agent_root(skill_root)
+    lock_path = agent_root / _SKILLS_LOCK_FILENAME
+    return lock_path, _load_skills_lock(lock_path)
+
+
 def _write_skill_lock(
     skill_root: Path,
     *,
@@ -79,9 +85,7 @@ def _write_skill_lock(
     revision: str,
     sha256: str,
 ) -> Path:
-    agent_root = _find_agent_root(skill_root)
-    lock_path = agent_root / _SKILLS_LOCK_FILENAME
-    skills = _load_skills_lock(lock_path)
+    lock_path, skills = _read_skills_lock(skill_root)
     entry = {
         "name": skill_name,
         "source": "local",
@@ -120,6 +124,9 @@ def publish_skill(  # noqa: PLR0913
     out_dir = Path(output_dir or skill_root.parent / ".build" / "skills").resolve()
     if out_dir == skill_root or out_dir.is_relative_to(skill_root):
         raise RegistryError(f"Skill output directory cannot be inside the skill package: {out_dir}")
+
+    if write_lock:
+        _read_skills_lock(skill_root)
 
     skill = load_skill_directory(skill_root)
     validate_skill_name(skill.name)

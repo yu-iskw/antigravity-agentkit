@@ -28,6 +28,12 @@ def test_eval_suite_rejects_duplicate_case_names() -> None:
         EvalSuite.model_validate(data)
 
 
+def test_eval_suite_rejects_execution_mode() -> None:
+    """Checked-in suites cannot select live or paid execution modes."""
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        EvalSuite.model_validate(minimal_eval_dict(mode="live"))
+
+
 def test_eval_suite_from_dict_validates() -> None:
     """EvalSuite.from_dict accepts valid data and rejects invalid suites."""
     suite = EvalSuite.from_dict(minimal_eval_dict())
