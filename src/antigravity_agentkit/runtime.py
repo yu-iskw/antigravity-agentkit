@@ -52,6 +52,12 @@ async def _agent_chat_turn(agent: Any, prompt: str) -> str:
     return await chat_response_text(response)
 
 
+async def run_single_chat_turn(agent: Any, message: str) -> str:
+    """Run one chat turn inside the SDK async session context."""
+    async with agent:
+        return await _agent_chat_turn(agent, message)
+
+
 async def _read_stdin_prompt() -> str:
     """Read stdin without leaving a blocking executor thread on cancellation."""
     loop = asyncio.get_running_loop()
@@ -152,8 +158,7 @@ class RuntimeAgent:
         impersonate = resolve_impersonate_target(flag=impersonate_service_account)
         with operator_credentials_context(impersonate):
             agent = self._project.create_agent(production=production, interactive=interactive)
-            async with agent:
-                return await _agent_chat_turn(agent, prompt)
+            return await run_single_chat_turn(agent, prompt)
 
     async def run_repl(
         self,
@@ -260,4 +265,5 @@ __all__ = [
     "create_agent_from_ir_file",
     "create_agent_from_project",
     "create_sdk_config_from_ir",
+    "run_single_chat_turn",
 ]

@@ -124,16 +124,18 @@ def create_or_update_agent_engine(  # noqa: PLR0913
 ) -> dict[str, Any]:
     """Create or update an Agent Runtime reasoning engine."""
     canonical_package_dir = state_package_dir or package_dir
-    digest = package_digest_from_lockfile(package_dir) or package_digest(package_dir)
     if state_package_dir is None:
         hints = build_iam_hints_from_config(deployment_config, mcp_server_names=mcp_server_names)
         write_iam_hints_sidecar(package_dir, hints)
+        # Deploy digest covers the full tree (sidecars included), not build-time lock only.
+        digest = package_digest(package_dir)
         archived_package_dir = archive_package_revision(
             canonical_package_dir,
             package_dir,
             digest,
         )
     else:
+        digest = package_digest(package_dir)
         archived_package_dir = package_dir
     api_config = build_agent_engine_api_config(deployment_config, archived_package_dir)
     engine_client = client or create_vertex_agent_engine_client(project_id, location)

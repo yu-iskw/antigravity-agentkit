@@ -103,6 +103,19 @@ def _metric_result(
     return None
 
 
+def _metric_error_text(metric_result: dict[str, Any]) -> str | None:
+    """Return human-readable text from a pinned Vertex MetricResult error field."""
+    error = metric_result.get("error")
+    if error is None:
+        return None
+    if isinstance(error, dict):
+        message = error.get("message")
+        if message:
+            return str(message)
+        return str(error)
+    return str(error)
+
+
 def _case_summary(
     case: dict[str, Any],
     result: dict[str, Any] | None,
@@ -115,10 +128,10 @@ def _case_summary(
     if metric_result is None:
         failures.append(f"Platform evaluation returned no result for metric {metric!r}.")
     else:
-        error_message = metric_result.get("error_message")
+        error_text = _metric_error_text(metric_result)
         raw_score = metric_result.get("score")
-        if error_message:
-            failures.append(f"Platform evaluation error: {error_message}")
+        if error_text:
+            failures.append(f"Platform evaluation error: {error_text}")
         elif isinstance(raw_score, (int, float)) and not isinstance(raw_score, bool):
             score = float(raw_score)
         else:

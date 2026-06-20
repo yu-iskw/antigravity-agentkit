@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Self
 
 import pytest
 
@@ -21,6 +24,7 @@ from antigravity_agentkit.platform.deploy_state import (
     resolve_rollback_target,
 )
 from antigravity_agentkit.platform.evals import (
+    _case_summary,
     compare_eval_results,
     export_platform_dataset,
     run_platform_eval_suite,
@@ -28,8 +32,12 @@ from antigravity_agentkit.platform.evals import (
 from antigravity_agentkit.platform.iam import identity_api_fields, resolve_identity
 from antigravity_agentkit.platform.observability import observability_env_vars
 from antigravity_agentkit.platform.rollback import rollback_agent_engine
-from antigravity_agentkit.platform.runtime_adapter import PLATFORM_ENTRYPOINT_MODULE
+from antigravity_agentkit.platform.runtime_adapter import (
+    PLATFORM_ENTRYPOINT_MODULE,
+    platform_adapter_source,
+)
 from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.runtime import run_single_chat_turn
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 
 _MAX_DEPLOY_HISTORY = 10
@@ -142,6 +150,119 @@ def test_package_digest_is_stable(tmp_path: Path) -> None:
     second = package_digest(package_dir)
     assert first == second
     assert first.startswith("sha256:")
+
+
+def test_deploy_digest_includes_sidecars(tmp_path: Path) -> None:
+    """Deploy archives use a digest of the full tree after sidecars are written."""
+    package_dir = tmp_path / ".build" / "demo"
+    package_dir.mkdir(parents=True)
+    lock_digest = "a" * 64
+    (package_dir / "agent.py").write_text("agent\n", encoding="utf-8")
+    (package_dir / "requirements.txt").write_text("example\n", encoding="utf-8")
+    (package_dir / "agentkit.lock.json").write_text(
+        json.dumps({"packageDigest": f"sha256:{lock_digest}"}),
+        encoding="utf-8",
+    )
+
+    class FakeClient:
+        def create(self, *, config: dict[str, object]) -> dict[str, str]:
+            del config
+            return {"resourceName": "projects/p/locations/l/reasoningEngines/1"}
+
+        def update(self, *, name: str, config: dict[str, object]) -> dict[str, str]:
+            del config
+            return {"resourceName": name}
+
+        def get(self, *, name: str) -> dict[str, str]:
+            return {"resourceName": name}
+
+    first = create_or_update_agent_engine(
+        {},
+        package_dir,
+        project_id="p",
+        location="l",
+        client=FakeClient(),
+    )
+    first_digest = first["packageDigest"]
+    assert first_digest != f"sha256:{lock_digest}"
+
+    (package_dir / "registry-metadata.json").write_text(
+        json.dumps({"version": 2}),
+        encoding="utf-8",
+    )
+    second = create_or_update_agent_engine(
+        {},
+        package_dir,
+        project_id="p",
+        location="l",
+        resource_name=first["resourceName"],
+        client=FakeClient(),
+    )
+    assert second["packageDigest"] != first_digest
+    second_archive = Path(second["packageDir"])
+    assert json.loads((second_archive / "registry-metadata.json").read_text()) == {"version": 2}
+
+
+def test_rollback_records_deploy_digest_not_lock_digest(tmp_path: Path) -> None:
+    """Rollback records the archived tree digest, not the build-time lock digest."""
+    package_dir = tmp_path / ".build" / "demo"
+    package_dir.mkdir(parents=True)
+    lock_digest = "a" * 64
+    (package_dir / "agent.py").write_text("first\n", encoding="utf-8")
+    (package_dir / "requirements.txt").write_text("example\n", encoding="utf-8")
+    (package_dir / "agentkit.lock.json").write_text(
+        json.dumps({"packageDigest": f"sha256:{lock_digest}"}),
+        encoding="utf-8",
+    )
+
+    class FakeClient:
+        def create(self, *, config: dict[str, object]) -> dict[str, str]:
+            del config
+            return {"resourceName": "projects/p/locations/l/reasoningEngines/1"}
+
+        def update(self, *, name: str, config: dict[str, object]) -> dict[str, str]:
+            del config
+            return {"resourceName": name}
+
+        def get(self, *, name: str) -> dict[str, str]:
+            return {"resourceName": name}
+
+    first = create_or_update_agent_engine(
+        {},
+        package_dir,
+        project_id="p",
+        location="l",
+        client=FakeClient(),
+    )
+    assert first["packageDigest"] != f"sha256:{lock_digest}"
+
+    (package_dir / "agent.py").write_text("second\n", encoding="utf-8")
+    create_or_update_agent_engine(
+        {},
+        package_dir,
+        project_id="p",
+        location="l",
+        resource_name=first["resourceName"],
+        client=FakeClient(),
+    )
+
+    state_before = load_deploy_state(package_dir)
+    assert state_before is not None
+    history_digest = state_before.history[0].package_digest
+
+    rollback_agent_engine(
+        {},
+        package_dir,
+        project_id="p",
+        location="l",
+        target="0",
+        client=FakeClient(),
+    )
+
+    state_after = load_deploy_state(package_dir)
+    assert state_after is not None
+    assert state_after.package_digest == history_digest
+    assert state_after.package_digest != f"sha256:{lock_digest}"
 
 
 def test_record_deploy_and_rollback_target(tmp_path: Path) -> None:
@@ -260,30 +381,29 @@ def test_rollback_uses_archived_revision_and_records_new_current(
 ) -> None:
     """Rollback deploys the selected immutable package and advances state history."""
     package_dir = tmp_path / ".build" / "demo"
-    first_digest = "a" * 64
-    second_digest = "b" * 64
-    first_archive = package_dir.parent / ".deploy" / "demo" / "revisions" / first_digest
-    second_archive = package_dir.parent / ".deploy" / "demo" / "revisions" / second_digest
+    first_archive = package_dir.parent / ".deploy" / "demo" / "revisions" / "first"
+    second_archive = package_dir.parent / ".deploy" / "demo" / "revisions" / "second"
     for archive, content in ((first_archive, "first\n"), (second_archive, "second\n")):
         archive.mkdir(parents=True)
         (archive / "agent.py").write_text(content, encoding="utf-8")
         (archive / "requirements.txt").write_text("example\n", encoding="utf-8")
-        digest = archive.name
         (archive / "agentkit.lock.json").write_text(
-            f'{{"packageDigest": "sha256:{digest}"}}',
+            '{"packageDigest": "sha256:build-time-lock-digest"}',
             encoding="utf-8",
         )
+    first_deploy_digest = package_digest(first_archive)
+    second_deploy_digest = package_digest(second_archive)
     record_deploy(
         package_dir,
         resource_name="projects/p/locations/l/reasoningEngines/1",
-        package_digest=f"sha256:{first_digest}",
+        package_digest=first_deploy_digest,
         git_sha=target_git_sha,
         deployed_package_dir=first_archive,
     )
     record_deploy(
         package_dir,
         resource_name="projects/p/locations/l/reasoningEngines/1",
-        package_digest=f"sha256:{second_digest}",
+        package_digest=second_deploy_digest,
         git_sha="second",
         deployed_package_dir=second_archive,
     )
@@ -315,9 +435,107 @@ def test_rollback_uses_archived_revision_and_records_new_current(
     assert calls[0]["source_packages"] == [str(first_archive)]
     state = load_deploy_state(package_dir)
     assert state is not None
-    assert state.package_digest == f"sha256:{first_digest}"
+    assert state.package_digest == first_deploy_digest
     assert state.git_sha == target_git_sha
-    assert state.history[0].package_digest == f"sha256:{second_digest}"
+    assert state.history[0].package_digest == second_deploy_digest
+
+
+def test_platform_adapter_source_uses_chat_lifecycle() -> None:
+    """Generated adapter must delegate to run_single_chat_turn, not run()."""
+    source = platform_adapter_source()
+    assert "run_single_chat_turn" in source
+    assert "_agent.run(" not in source
+
+
+def test_run_platform_query_uses_chat() -> None:
+    """Platform query runs one chat turn inside the SDK async context manager."""
+
+    class _FakeChatResponse:
+        def text(self) -> str:
+            return "hello from agent"
+
+    class FakeAgent:
+        """Minimal async context manager agent stub for platform query tests."""
+
+        async def __aenter__(self) -> Self:
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        async def chat(self, message: str) -> _FakeChatResponse:
+            assert message == "hi"
+            return _FakeChatResponse()
+
+        async def run(self, message: str) -> str:
+            raise AssertionError(f"run() must not be called: {message!r}")
+
+    result = asyncio.run(run_single_chat_turn(FakeAgent(), "hi"))
+    assert result == "hello from agent"
+
+
+def test_rollback_updates_current_resource_when_history_differs(tmp_path: Path) -> None:
+    """Rollback applies the selected package to state.resource_name, not the record's engine."""
+    package_dir = tmp_path / ".build" / "demo"
+    first_digest = "a" * 64
+    second_digest = "b" * 64
+    first_archive = package_dir.parent / ".deploy" / "demo" / "revisions" / first_digest
+    second_archive = package_dir.parent / ".deploy" / "demo" / "revisions" / second_digest
+    for archive, content in ((first_archive, "first\n"), (second_archive, "second\n")):
+        archive.mkdir(parents=True)
+        (archive / "agent.py").write_text(content, encoding="utf-8")
+        (archive / "requirements.txt").write_text("example\n", encoding="utf-8")
+        digest = archive.name
+        (archive / "agentkit.lock.json").write_text(
+            f'{{"packageDigest": "sha256:{digest}"}}',
+            encoding="utf-8",
+        )
+    engine_one = "projects/p/locations/l/reasoningEngines/1"
+    engine_two = "projects/p/locations/l/reasoningEngines/2"
+    record_deploy(
+        package_dir,
+        resource_name=engine_one,
+        package_digest=f"sha256:{first_digest}",
+        git_sha="first",
+        deployed_package_dir=first_archive,
+    )
+    record_deploy(
+        package_dir,
+        resource_name=engine_two,
+        package_digest=f"sha256:{second_digest}",
+        git_sha="second",
+        deployed_package_dir=second_archive,
+    )
+    updated_names: list[str] = []
+
+    class FakeClient:
+        def create(self, *, config: dict[str, object]) -> dict[str, str]:
+            del config
+            raise AssertionError("rollback must update the existing resource")
+
+        def update(self, *, name: str, config: dict[str, object]) -> dict[str, str]:
+            del config
+            updated_names.append(name)
+            return {"resourceName": name}
+
+        def get(self, *, name: str) -> dict[str, str]:
+            return {"resourceName": name}
+
+    state_before = load_deploy_state(package_dir)
+    assert state_before is not None
+    assert state_before.resource_name == engine_two
+    assert state_before.history[0].resource_name == engine_one
+
+    rollback_agent_engine(
+        {},
+        package_dir,
+        project_id="p",
+        location="l",
+        target="0",
+        client=FakeClient(),
+    )
+
+    assert updated_names == [engine_two]
 
 
 def test_export_platform_dataset(hello_world_agent_dir: Path) -> None:
@@ -407,7 +625,7 @@ def test_run_platform_eval_suite_maps_sdk_results(
                         "response_candidate_results": [
                             {
                                 "metric_results": {
-                                    "general_quality_v1": {"error_message": "judge failed"}
+                                    "general_quality_v1": {"error": {"message": "judge failed"}}
                                 }
                             }
                         ]
@@ -475,6 +693,28 @@ def test_run_platform_eval_suite_maps_sdk_results(
     assert [case["passed"] for case in result["caseResults"]] == [False, False, True]
     assert "below threshold" in result["caseResults"][0]["failures"][0]
     assert "judge failed" in result["caseResults"][1]["failures"][0]
+
+
+def test_case_summary_fails_on_sdk_error_despite_score() -> None:
+    """MetricResult.error must fail the case even when a score is also present."""
+    summary = _case_summary(
+        {"name": "dual", "suitePath": "evals/smoke.yaml", "metric": "quality", "threshold": 0.5},
+        {
+            "response_candidate_results": [
+                {
+                    "metric_results": {
+                        "quality": {
+                            "error": {"message": "judge unavailable"},
+                            "score": 0.9,
+                        }
+                    }
+                }
+            ]
+        },
+    )
+    assert summary["passed"] is False
+    assert summary["score"] is None
+    assert "judge unavailable" in summary["failures"][0]
 
 
 def test_compare_eval_results(tmp_path: Path) -> None:

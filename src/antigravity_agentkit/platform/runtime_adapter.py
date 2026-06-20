@@ -52,6 +52,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from agent import root_agent
+from antigravity_agentkit.runtime import run_single_chat_turn
 
 
 class PlatformAgentApp:
@@ -62,20 +63,11 @@ class PlatformAgentApp:
 
     def query(self, message: str) -> str:
         """Run a single-turn query against the agent."""
-        return asyncio.run(self._run_async(message))
+        return asyncio.run(run_single_chat_turn(self._agent, message))
 
     def stream_query(self, message: str) -> Iterator[str]:
         """Stream query chunks (single-chunk fallback when SDK lacks streaming)."""
         yield self.query(message)
-
-    async def _run_async(self, message: str) -> str:
-        result = await self._agent.run(message)
-        if isinstance(result, str):
-            return result
-        text = getattr(result, "text", None)
-        if isinstance(text, str):
-            return text
-        return str(result)
 
 
 platform_app = PlatformAgentApp(root_agent)

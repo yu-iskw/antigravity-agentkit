@@ -33,7 +33,7 @@ def rollback_agent_engine(  # noqa: PLR0913
     if not rollback_dir.is_dir():
         raise DeployError(f"Rollback package directory not found: {rollback_dir}")
 
-    resource_name = record.resource_name or state.resource_name
+    resource_name = state.resource_name
     if not resource_name:
         raise DeployError("Cannot rollback without a resource name in deploy state.")
 
