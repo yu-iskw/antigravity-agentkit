@@ -1,0 +1,7 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: managed-agents-api-demo
+  namespace: managed-agents-api-demo
+spec:
+  target: managed-agents-api

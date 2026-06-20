@@ -24,7 +24,7 @@ def test_router_builds_agent_platform_target(
         TEST_GCP_LOCATION,
     )
 
-    assert config["target"] == "agent-platform"
+    assert config["target"] == "agent-platform-runtime"
 
 
 def test_router_builds_gemini_api_target(

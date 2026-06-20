@@ -5,11 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from antigravity_agentkit.exceptions import CompilationError, LoadError, ValidationError
+from antigravity_agentkit.exceptions import LoadError, ValidationError
+from antigravity_agentkit.ir import SubagentIR
 from antigravity_agentkit.paths import resolve_project_path
 from antigravity_agentkit.schema.agent import SubagentSpec
 from antigravity_agentkit.schema.subagents import DelegationToolMetadata, LoadedSubagent
-from antigravity_agentkit.skills import parse_frontmatter
+from antigravity_agentkit.skills import parse_frontmatter, skill_content_hash
 
 
 def load_subagent_md(path: Path) -> LoadedSubagent:
@@ -112,12 +113,21 @@ def delegation_tool_dict_from_ir(entry: dict[str, Any]) -> dict[str, Any]:
 
 
 def sdk_subagents_supported() -> bool:
-    """Return True when the installed SDK exposes static SubagentConfig."""
+    """Return True when the installed SDK can accept static subagents on LocalAgentConfig."""
     try:
-        from google.antigravity import types
+        import inspect
+
+        from google.antigravity import LocalAgentConfig, types
     except ImportError:
         return False
-    return getattr(types, "SubagentConfig", None) is not None
+    if getattr(types, "SubagentConfig", None) is None:
+        return False
+    signature = inspect.signature(LocalAgentConfig)
+    params = signature.parameters
+    accepts_kwargs = any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in params.values()
+    )
+    return "subagents" in params or accepts_kwargs
 
 
 def delegation_tool_dict(metadata: DelegationToolMetadata) -> dict[str, Any]:
@@ -132,13 +142,37 @@ def delegation_tool_dict(metadata: DelegationToolMetadata) -> dict[str, Any]:
     )
 
 
-def _coerce_loaded_subagents(subagents: dict[str, Any]) -> dict[str, LoadedSubagent]:
+def _coerce_loaded_subagents(subagents: dict[str, object]) -> dict[str, LoadedSubagent]:
     """Coerce loaded subagents dict to LoadedSubagent instances."""
     result: dict[str, LoadedSubagent] = {}
     for name, subagent in subagents.items():
         if isinstance(subagent, LoadedSubagent):
             result[name] = subagent
     return result
+
+
+def compile_subagents_to_ir(
+    root: Path,
+    subagents: dict[str, LoadedSubagent],
+) -> tuple[SubagentIR, ...]:
+    """Compile loaded subagents into frozen subagent IR."""
+    project_root = root.resolve()
+    entries: list[SubagentIR] = []
+    for subagent in sorted(subagents.values(), key=lambda item: item.name):
+        relative_path = subagent.path.relative_to(project_root).as_posix()
+        content_hash = skill_content_hash(subagent.body)
+        entries.append(
+            SubagentIR(
+                name=subagent.name,
+                type="markdown",
+                path=relative_path,
+                content_hash=content_hash,
+                description=subagent.description,
+                system_instructions=subagent.body,
+                tools=tuple(subagent.tools),
+            )
+        )
+    return tuple(entries)
 
 
 def compile_subagent_ir(subagents: dict[str, Any]) -> list[dict[str, Any]]:
@@ -153,39 +187,6 @@ def compile_subagent_ir(subagents: dict[str, Any]) -> list[dict[str, Any]]:
         }
         for subagent in sorted(loaded.values(), key=lambda item: item.name)
     ]
-
-
-def try_compile_sdk_subagents(subagent_ir: list[dict[str, Any]]) -> list[Any]:
-    """Compile subagent IR to SDK SubagentConfig objects or fail explicitly."""
-    if not subagent_ir:
-        return []
-
-    try:
-        from google.antigravity import types
-    except ImportError as exc:
-        raise CompilationError(
-            "The installed google-antigravity SDK cannot load static subagent support."
-        ) from exc
-
-    subagent_config = getattr(types, "SubagentConfig", None)
-    if subagent_config is None:
-        raise CompilationError(
-            "The installed google-antigravity SDK does not support static subagents; "
-            "install a version that provides google.antigravity.types.SubagentConfig."
-        )
-
-    sdk_subagents: list[Any] = []
-    for entry in subagent_ir:
-        kwargs: dict[str, Any] = {
-            "name": entry["name"],
-            "description": entry["description"],
-            "system_instructions": entry["systemInstructions"],
-        }
-        tools = entry.get("tools") or []
-        if tools:
-            kwargs["tools"] = list(tools)
-        sdk_subagents.append(subagent_config(**kwargs))
-    return sdk_subagents
 
 
 def subagent_index_section(

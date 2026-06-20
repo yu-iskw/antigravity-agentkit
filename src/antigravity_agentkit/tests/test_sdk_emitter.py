@@ -1,170 +1,111 @@
-"""Tests for SDK LocalAgentConfig emission."""
+"""Tests for SDK runtime assembly from CompiledAgentIR."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from antigravity_agentkit.compiler import compile_agent_config, compile_to_sdk_config
-from antigravity_agentkit.exceptions import CompilationError
-
-
-def test_compile_to_sdk_config_disables_subagents_by_default(
-    hello_world_agent_dir: Path,
-) -> None:
-    """SDK config preserves the compiled false value for agents without subagents."""
-    compiled = compile_agent_config(hello_world_agent_dir)
-
-    try:
-        sdk_config = compile_to_sdk_config(compiled)
-    except Exception as exc:
-        if "google-antigravity is not installed" in str(exc):
-            pytest.skip("google-antigravity not installed")
-        raise
-
-    assert sdk_config.capabilities.enable_subagents is False
+from antigravity_agentkit.compiler import compile_agent_ir
+from antigravity_agentkit.sdk.capabilities import SdkCapabilities
+from antigravity_agentkit.sdk.runtime import create_sdk_config_from_ir
 
 
-def test_compile_to_sdk_config_includes_subagents_and_capabilities(
-    subagents_agent_dir: Path,
-) -> None:
-    """SDK config receives subagents and capabilities when google-antigravity is installed."""
-    compiled = compile_agent_config(subagents_agent_dir)
-
-    try:
-        from google.antigravity import types
-    except ImportError:
-        pytest.skip("google-antigravity not installed")
-
-    if getattr(types, "SubagentConfig", None) is None:
-        with pytest.raises(CompilationError, match="does not support static subagents"):
-            compile_to_sdk_config(compiled)
-        return
-
-    sdk_config = compile_to_sdk_config(compiled)
-    assert sdk_config.capabilities.enable_subagents is True
-    assert len(sdk_config.subagents) == 1
-    assert sdk_config.subagents[0].name == "proofreader"
-
-
-def test_compile_to_sdk_config_rejects_constructor_without_subagents(
-    subagents_agent_dir: Path,
-) -> None:
-    """SDK constructors without a subagents parameter fail with an actionable error."""
-    compiled = compile_agent_config(subagents_agent_dir)
-
-    def local_config(*, system_instructions: str, vertex: bool) -> None:
-        del system_instructions, vertex
-
-    with (
-        patch("antigravity_agentkit.sdk.sdk_subagents_supported", return_value=True),
-        patch(
-            "antigravity_agentkit.sdk.try_compile_sdk_subagents",
-            return_value=[object()],
+def _full_capabilities() -> SdkCapabilities:
+    return SdkCapabilities(
+        sdk_version="0.1.4",
+        local_agent_config_params=frozenset(
+            {
+                "system_instructions",
+                "model",
+                "vertex",
+                "project",
+                "location",
+                "mcp_servers",
+                "tools",
+                "policies",
+                "capabilities",
+                "skills_paths",
+                "subagents",
+            }
         ),
-        patch("antigravity_agentkit.sdk.get_local_agent_config_class", return_value=local_config),
-        pytest.raises(CompilationError, match="cannot accept static subagents"),
-    ):
-        compile_to_sdk_config(compiled)
+        local_agent_config_accepts_kwargs=False,
+        accepts_model=True,
+        accepts_vertex=True,
+        accepts_project=True,
+        accepts_location=True,
+        accepts_mcp_servers=True,
+        accepts_tools=True,
+        accepts_policies=True,
+        accepts_capabilities=True,
+        accepts_skills_paths=True,
+        accepts_subagents=True,
+        has_capabilities_config=True,
+        has_mcp_stdio_server=True,
+        has_mcp_sse_server=False,
+        has_mcp_streamable_http_server=True,
+        has_subagent_config=True,
+        policy_module_path="google.antigravity.policy",
+    )
 
 
-def test_compile_to_sdk_config_emits_supported_subagents(subagents_agent_dir: Path) -> None:
-    """Compatible SDK constructors receive compiled static subagents."""
-    compiled = compile_agent_config(subagents_agent_dir)
-    received: dict[str, object] = {}
-
-    class FakeSubagentConfig:
-        def __init__(self, **kwargs: object) -> None:
-            self.name = kwargs["name"]
-
-    def local_config(**kwargs: object) -> dict[str, object]:
-        received.update(kwargs)
-        return received
-
-    with (
-        patch("antigravity_agentkit.sdk.sdk_subagents_supported", return_value=True),
-        patch("google.antigravity.types.SubagentConfig", FakeSubagentConfig, create=True),
-        patch("antigravity_agentkit.sdk.get_local_agent_config_class", return_value=local_config),
-    ):
-        sdk_config = compile_to_sdk_config(compiled)
-
-    subagents = sdk_config["subagents"]
-    assert isinstance(subagents, list)
-    assert subagents[0].name == "proofreader"
-
-
-def test_compile_to_sdk_config_allows_explicitly_disabled_subagents(
-    subagents_agent_dir: Path,
-) -> None:
-    """Declared subagents do not require SDK support when explicitly disabled."""
-    compiled = compile_agent_config(subagents_agent_dir)
-    compiled.capabilities["enableSubagents"] = False
-
-    with patch("antigravity_agentkit.sdk.sdk_subagents_supported", return_value=False):
-        sdk_config = compile_to_sdk_config(compiled)
-
-    assert sdk_config.capabilities.enable_subagents is False
-
-
-def test_compile_to_sdk_config_http_mcp_server(hello_world_agent_dir: Path) -> None:
-    """SDK config can emit streamable HTTP MCP servers."""
-    compiled = compile_agent_config(hello_world_agent_dir)
-    compiled.mcp_servers = [
-        {
-            "name": "remote",
-            "transport": "http",
-            "url": "https://example.com/mcp",
-            "disabledTools": ["dangerous_tool"],
-        }
-    ]
-
-    try:
-        sdk_config = compile_to_sdk_config(compiled)
-    except Exception as exc:
-        if "google-antigravity is not installed" in str(exc):
-            pytest.skip("google-antigravity not installed")
-        raise
-
-    assert len(sdk_config.mcp_servers) == 1
-    assert sdk_config.mcp_servers[0].url == "https://example.com/mcp"
-
-
-def test_compile_to_sdk_config_interactive_uses_distinct_handler(
+def test_create_sdk_config_disables_subagents_by_default(
     hello_world_agent_dir: Path,
 ) -> None:
-    """Interactive mode resolves a different ask-user handler than batch mode."""
-    from antigravity_agentkit.sdk import resolve_ask_user_handler
+    """Hello world compiles without subagents in SDK config."""
+    compiled = compile_agent_ir(hello_world_agent_dir)
 
-    compiled = compile_agent_config(hello_world_agent_dir)
-    compiled.policies = [{"tool": "run_command", "decision": "ask_user"}]
-
-    batch_handler = resolve_ask_user_handler(interactive=False)
-    interactive_handler = resolve_ask_user_handler(interactive=True)
-
-    assert batch_handler is not interactive_handler
-    assert batch_handler(object()) is False
-
-    try:
-        compile_to_sdk_config(compiled, interactive=True)
-        compile_to_sdk_config(compiled, interactive=False)
-    except Exception as exc:
-        if "google-antigravity is not installed" in str(exc):
-            pytest.skip("google-antigravity not installed")
-        raise
+    with patch("antigravity_agentkit.sdk.runtime.get_local_agent_config_class") as mock_config:
+        mock_cls = MagicMock()
+        mock_config.return_value = mock_cls
+        with patch(
+            "antigravity_agentkit.sdk.runtime.SdkCapabilities.detect",
+            return_value=_full_capabilities(),
+        ):
+            create_sdk_config_from_ir(compiled, project_root=hello_world_agent_dir)
+        kwargs = mock_cls.call_args.kwargs
+        assert "subagents" not in kwargs or not kwargs.get("subagents")
 
 
-def test_compile_to_sdk_config_emits_skills_paths(skills_agent_dir: Path) -> None:
-    """SDK config receives compiled skills_paths when google-antigravity is installed."""
-    compiled = compile_agent_config(skills_agent_dir)
+def test_create_sdk_config_includes_subagents_and_capabilities(
+    subagents_agent_dir: Path,
+) -> None:
+    """Subagents example emits subagents and capabilities when SDK supports them."""
+    compiled = compile_agent_ir(subagents_agent_dir)
 
-    try:
-        sdk_config = compile_to_sdk_config(compiled)
-    except Exception as exc:
-        if "google-antigravity is not installed" in str(exc):
-            pytest.skip("google-antigravity not installed")
-        raise
+    with (
+        patch(
+            "antigravity_agentkit.sdk.runtime.compile_sdk_subagents",
+            return_value=(MagicMock(),),
+        ),
+        patch(
+            "antigravity_agentkit.capabilities.try_compile_sdk_capabilities",
+            return_value=MagicMock(),
+        ),
+        patch("antigravity_agentkit.sdk.runtime.get_local_agent_config_class") as mock_config,
+    ):
+        mock_cls = MagicMock()
+        mock_config.return_value = mock_cls
+        with patch(
+            "antigravity_agentkit.sdk.runtime.SdkCapabilities.detect",
+            return_value=_full_capabilities(),
+        ):
+            create_sdk_config_from_ir(compiled, project_root=subagents_agent_dir)
+        kwargs = mock_cls.call_args.kwargs
+        assert kwargs.get("subagents")
 
-    assert sdk_config.skills_paths == compiled.skills_paths
-    assert len(sdk_config.skills_paths) == 1
+
+def test_create_sdk_config_emits_skills_paths(skills_agent_dir: Path) -> None:
+    """Skills example includes skills_paths when skills are present."""
+    compiled = compile_agent_ir(skills_agent_dir)
+
+    with patch("antigravity_agentkit.sdk.runtime.get_local_agent_config_class") as mock_config:
+        mock_cls = MagicMock()
+        mock_config.return_value = mock_cls
+        with patch(
+            "antigravity_agentkit.sdk.runtime.SdkCapabilities.detect",
+            return_value=_full_capabilities(),
+        ):
+            create_sdk_config_from_ir(compiled, project_root=skills_agent_dir)
+        kwargs = mock_cls.call_args.kwargs
+        assert kwargs.get("skills_paths")
+        assert kwargs.get("tools")

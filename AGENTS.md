@@ -83,10 +83,15 @@ make clean        # Clean build artifacts
 ## Architecture
 
 - Package source: `src/antigravity_agentkit/`
+- **Compile contract:** pure core emits frozen, JSON-serializable `CompiledAgentIR` (`schema_version = antigravity-agentkit.ir/v1alpha1`); see [RFC 0002](docs/rfcs/0002-spec-first-core-frozen-ir.md)
+- **Optional extras:** base (core only) / `[antigravity]` (SDK runtime assembly) / `[gcp]` (deploy targets, packaging, registry) / `[all]` (both extras)
+- **Deploy targets (canonical):** `agent-platform-runtime` (alias `agent-platform`), `managed-agents-api` (alias `gemini-api`); `ai-studio` and `cloud-run` remain schema stubs
+- **Core-only CI:** `test_core_only.yml` runs load/validate/compile/eval without `google-antigravity` or GCP libraries
 - Dev scripts: `dev/`
 - CI/CD: `.github/workflows/`
 - **Claude Code** automation: [`.claude/`](.claude/) — see [CLAUDE.md](CLAUDE.md) for how Claude loads this repo and the directory layout
 - **Architecture decision records** (ADRs): `docs/adr/`. Use the `manage-adr` skill when the `adr` CLI is installed
+- **RFCs:** [RFC 0001](docs/rfcs/0001-declarative-antigravity-agentkit.md) (product direction), [RFC 0002](docs/rfcs/0002-spec-first-core-frozen-ir.md) (IR, runtime assembly, deploy contracts)
 
 ## Common gotchas
 
@@ -165,14 +170,15 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 
 ## Learned Workspace Facts
 
-- This repo is **antigravity-agentkit** — a declarative compiler and governance layer over the Antigravity SDK; see RFC `docs/rfcs/0001-declarative-antigravity-agentkit.md`.
-- **Implement** lifecycle: `agent.yaml` plus assets → load, validate, compile, run, eval (`AgentProject`); no `deployment.yaml` required.
-- **Ship** lifecycle: optional `deployment.yaml` is required for `package`, `deploy`, and `register`; packaging lives in `antigravity_agentkit.deploy`, not `AgentProject`.
+- This repo is **antigravity-agentkit** — a declarative compiler and governance layer over the Antigravity SDK; see [RFC 0001](docs/rfcs/0001-declarative-antigravity-agentkit.md) and [RFC 0002](docs/rfcs/0002-spec-first-core-frozen-ir.md).
+- **Implement** lifecycle: `agent.yaml` plus assets → load, validate, compile to `CompiledAgentIR`, run, eval (`AgentProject`); no `deployment.yaml` required.
+- **Ship** lifecycle: optional `deployment.yaml` is required for `package`, `deploy`, and `register`; packaging lives in `antigravity_agentkit.deploy` (requires `[gcp]` extra), not `AgentProject`.
 - `spec.deployment` was removed from `agent.yaml` (hard break); infra and deploy target belong in `deployment.yaml` only.
 - Bundled implement-only examples (`hello_world`, `skills`, `subagents`, `mcp`) omit `deployment.yaml`; `examples/agent_platform/` is the ship-ready reference with `deployment.yaml` and package/deploy/register dry-run.
 - Local ship verification: `bash dev/test_agent_platform.sh` exercises the full `examples/agent_platform/` workflow and is used by `.github/workflows/agent_ship.yml`.
-- Example default model is `gemini-3.1-flash-lite`; live `run` in `dev/test_examples.sh` needs `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
-- Canonical deploy target is `agent-platform`; `gemini-api` emits a Tier B Managed Agents contract (`gemini-agent-config.json`); `ai-studio` and `cloud-run` remain schema stubs.
-- P0 SDK emitter wires capabilities, MCP HTTP with per-server tool filters, subagent `SubagentConfig`, `skills_paths`, and `run --interactive` HITL through `compile_to_sdk_config`; `read_skill` remains a lightweight fallback.
-- SDK default denies `run_command`; skill packages with `scripts/` need an explicit `policies.yaml` allow entry; Agent Platform sandbox for skill scripts is deferred (ADR 0003 Tier C).
+- Example default model is `gemini-3.1-flash-lite`; live `run` in `dev/test_examples.sh` needs `GEMINI_API_KEY` or `GOOGLE_API_KEY` and `pip install 'antigravity-agentkit[antigravity]'`.
+- **Deploy targets (RFC 0002):** canonical `agent-platform-runtime` (CLI alias `agent-platform`) emits Agent Platform Runtime Tier B artifacts (`deployment-config.json` + source package); canonical `managed-agents-api` (CLI alias `gemini-api`) emits Managed Agents API contract (`gemini-agent-config.json`); `ai-studio` and `cloud-run` remain schema stubs.
+- **Optional extras:** base core (no SDK/GCP) / `[antigravity]` for `run`/`chat` / `[gcp]` for ship commands / `[all]` for both; core-only CI (`test_core_only.yml`) validates compile path without SDK.
+- SDK runtime assembly (`[antigravity]` extra) wires capabilities, MCP, subagent `SubagentConfig`, `skills_paths`, and `run --interactive` HITL from `CompiledAgentIR`; `read_skill` remains a lightweight fallback.
+- SDK default denies `run_command`; skill packages with `scripts/` need an explicit `policies.yaml` allow entry; Agent Platform Runtime sandbox for skill scripts is deferred (ADR 0003 Tier C).
 - CLI `chat` is the multi-turn local REPL; `run --interactive` enables HITL tool approval only, not ongoing chat.

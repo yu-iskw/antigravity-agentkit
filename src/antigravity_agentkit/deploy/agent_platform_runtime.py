@@ -1,4 +1,4 @@
-"""Google Cloud Agent Platform deployment adapter."""
+"""Agent Platform Runtime deployment adapter."""
 
 from __future__ import annotations
 
@@ -11,22 +11,50 @@ from antigravity_agentkit.deploy._common import (
     resolve_display_name,
     should_dry_run,
     write_dry_run_artifact,
+    write_registry_metadata_artifact,
+)
+from antigravity_agentkit.deploy.capabilities import (
+    AGENT_PLATFORM_RUNTIME_CAPABILITIES,
+    validate_ir_for_target,
 )
 from antigravity_agentkit.deploy.package import build_source_package
+from antigravity_agentkit.deploy.target import DeployContext
+from antigravity_agentkit.ir import CompiledAgentIR
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 
+name = "agent-platform-runtime"
+aliases = ("agent-platform", "agent-platform-runtime")
+capabilities = AGENT_PLATFORM_RUNTIME_CAPABILITIES
 
-def build_deployment_config(
+
+def validate_ir(
+    ir: CompiledAgentIR,
+    deployment: DeploymentManifest,
+    context: DeployContext,
+) -> None:
+    """Validate IR against Agent Platform Runtime capabilities."""
+    del context
+    validate_ir_for_target(
+        ir,
+        deployment,
+        capabilities,
+        unsupported_hint="Remove unsupported features or choose a different target.",
+    )
+
+
+def build_deployment_config(  # noqa: PLR0913
     project: AgentProject,
+    ir: CompiledAgentIR,
     deployment: DeploymentManifest,
     project_id: str,
     location: str,
+    *,
+    package_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Build Agent Engine deployment configuration dictionary."""
+    """Build Agent Runtime deployment configuration dictionary."""
     manifest = project.manifest
     deploy_spec = deployment.spec
-    vertex = manifest.spec.runtime.vertex
 
     display_name = resolve_display_name(
         manifest.metadata.display_name,
@@ -35,7 +63,7 @@ def build_deployment_config(
     )
 
     config: dict[str, Any] = {
-        "source_packages": [str(project.root)],
+        "source_packages": [str(package_dir or project.root)],
         "entrypoint_module": "agent",
         "entrypoint_object": "root_agent",
         "requirements_file": "requirements.txt",
@@ -48,13 +76,13 @@ def build_deployment_config(
         ),
         "project": project_id,
         "location": location,
-        "target": deploy_spec.target,
+        "target": name,
     }
 
-    if vertex.enabled:
+    if ir.vertex.enabled:
         config["vertex"] = {
-            "project": vertex.project or project_id,
-            "location": vertex.location or location,
+            "project": ir.vertex.project or project_id,
+            "location": ir.vertex.location or location,
         }
 
     if deploy_spec.service_account:
@@ -75,6 +103,10 @@ def build_deployment_config(
             config["resource_limits"] = limits
     if deploy_spec.gateway and deploy_spec.gateway.enabled:
         config["gateway"] = deploy_spec.gateway.model_dump(by_alias=True, exclude_none=True)
+        config["registry"] = {
+            "scope": capabilities.registry_scope,
+            "metadata_file": "registry-metadata.json",
+        }
 
     return config
 
@@ -88,13 +120,37 @@ def deploy(  # noqa: PLR0913
     output_path: str | Path | None = None,
     dry_run: bool | None = None,
 ) -> dict[str, Any]:
-    """Deploy agent to Agent Platform or write config in dry-run mode."""
-    if not should_dry_run(dry_run=dry_run):
-        raise_live_deploy_not_implemented("Agent Platform")
+    """Deploy agent to Agent Platform Runtime or write config in dry-run mode."""
+    ir = project.compile()
+    context = DeployContext(
+        project_id=project_id,
+        location=location,
+        output_path=Path(output_path) if output_path else None,
+        dry_run=dry_run,
+    )
+    validate_ir(ir, deployment, context)
 
-    package_dir = build_source_package(project)
-    config = build_deployment_config(project, deployment, project_id, location)
+    if not should_dry_run(dry_run=dry_run):
+        raise_live_deploy_not_implemented("Agent Platform Runtime")
+
+    package_dir = build_source_package(project, compiled=ir)  # pylint: disable=unexpected-keyword-arg
+    config = build_deployment_config(
+        project,
+        ir,
+        deployment,
+        project_id,
+        location,
+        package_dir=package_dir,
+    )
     config["source_packages"] = [str(package_dir)]
+
+    write_registry_metadata_artifact(
+        ir,
+        deployment,
+        target=capabilities,
+        location=location,
+        path=package_dir / "registry-metadata.json",
+    )
 
     out = Path(output_path or project.root / ".build" / "deployment-config.json")
     return write_dry_run_artifact(out, config, extra={"package_dir": str(package_dir)})

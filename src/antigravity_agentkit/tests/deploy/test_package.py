@@ -22,9 +22,9 @@ def test_build_source_package_writes_expected_files(ship_project: AgentProject) 
     assert (package_dir / "metadata.json").is_file()
     assert (package_dir / "agent.yaml").is_file()
     assert (package_dir / "policies.yaml").is_file()
-    assert (package_dir / "requirements.txt").read_text(encoding="utf-8") == (
-        "antigravity-agentkit[antigravity]\n"
-    )
+    assert (package_dir / "compiled-agent-ir.json").is_file()
+    assert (package_dir / "agentkit.lock.json").is_file()
+    assert "create_agent_from_ir_file" in (package_dir / "agent.py").read_text(encoding="utf-8")
 
 
 def test_build_source_package_metadata_json_shape(ship_project: AgentProject) -> None:
@@ -34,7 +34,7 @@ def test_build_source_package_metadata_json_shape(ship_project: AgentProject) ->
 
     assert metadata["agentName"] == "ship-agent"
     assert "compiled" in metadata
-    assert "vertex" in metadata["compiled"]
+    assert "vertexEnabled" in metadata["compiled"]
     assert "mcpServers" in metadata["compiled"]
     assert "toolCount" in metadata["compiled"]
     assert "policyCount" in metadata["compiled"]

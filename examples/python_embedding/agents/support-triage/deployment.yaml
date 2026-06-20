@@ -1,0 +1,7 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: support-triage
+  namespace: support-triage
+spec:
+  target: agent-platform-runtime

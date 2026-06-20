@@ -10,7 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from antigravity_agentkit.cli import app
-from antigravity_agentkit.compiler import compile_agent_config
+from antigravity_agentkit.compiler import compile_agent_ir
 from antigravity_agentkit.loader import load_agent_directory
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.validator import validate_project
@@ -48,7 +48,7 @@ def test_example_validate_via_api(example_name: str, repo_root: Path) -> None:
 @pytest.mark.parametrize("example_name", EXAMPLE_NAMES)
 def test_example_compile_metadata(example_name: str, repo_root: Path) -> None:
     """Every example compiles to runtime metadata."""
-    compiled = compile_agent_config(repo_root / "examples" / example_name)
+    compiled = compile_agent_ir(repo_root / "examples" / example_name)
 
     assert compiled.model == "gemini-3.1-flash-lite"
     assert compiled.system_instructions

@@ -1,0 +1,7 @@
+default: deny
+
+allow:
+  - tool: read_skill
+
+deny:
+  - tool: run_command

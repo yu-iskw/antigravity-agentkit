@@ -1,0 +1,34 @@
+name: Test core only
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/test_core_only.yml
+      - pyproject.toml
+      - src/antigravity_agentkit/**
+      - uv.lock
+  push:
+    branches:
+      - main
+
+jobs:
+  core-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install core package only
+        run: |
+          pip install uv
+          uv sync --no-dev
+          uv pip install pytest pytest-cov
+      - name: Run core tests
+        run: |
+          uv run pytest src/antigravity_agentkit/tests/test_ir.py \
+            src/antigravity_agentkit/tests/test_compiler.py \
+            src/antigravity_agentkit/tests/test_import_boundary.py \
+            src/antigravity_agentkit/tests/deploy/test_deploy_capabilities.py \
+            -q

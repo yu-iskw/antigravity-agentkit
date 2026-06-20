@@ -72,11 +72,16 @@ dependencies = [
 antigravity-agentkit = "antigravity_agentkit.cli:main"
 [project.optional-dependencies]
 antigravity = ["google-antigravity>=0.1.4"]
+gcp = ["google-auth>=2", "google-cloud-aiplatform>=1"]
+all = ["antigravity-agentkit[antigravity,gcp]"]
 
 [tool.pytest.ini_options]
 testpaths = ["src/antigravity_agentkit/tests"]
 markers = [
   "live: real network/SDK integration (excluded from default make test)",
+  "core: pure core tests that do not require google-antigravity",
+  "antigravity: tests that require the google-antigravity SDK",
+  "gcp: tests that require GCP client libraries",
 ]
 
 [dependency-groups]

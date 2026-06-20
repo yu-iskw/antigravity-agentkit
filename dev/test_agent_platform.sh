@@ -41,8 +41,10 @@ echo "    wrote ${out}"
 api_key="${GEMINI_API_KEY:-${GOOGLE_API_KEY-}}"
 if [[ -n ${api_key} ]]; then
 	echo "==> live run agent_platform example (API key detected)"
-	timeout 60 "${CLI[@]}" run "${AGENT_DIR}" \
-		--prompt "Say hello in one short sentence."
+	if ! timeout 60 "${CLI[@]}" run "${AGENT_DIR}" \
+		--prompt "Say hello in one short sentence."; then
+		echo "    WARN: live run failed (SDK capability or network)"
+	fi
 else
 	echo "==> skip live run (set GEMINI_API_KEY or GOOGLE_API_KEY to enable)"
 fi

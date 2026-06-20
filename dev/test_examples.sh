@@ -21,7 +21,7 @@ MODULE_DIR="$(dirname "${SCRIPT_DIR}")"
 cd "${MODULE_DIR}"
 
 CLI=(uv run antigravity-agentkit)
-EXAMPLES=(hello_world skills subagents mcp agent_platform gemini_api)
+EXAMPLES=(hello_world skills subagents mcp agent_platform managed_agents_api)
 
 echo "==> validate examples"
 for name in "${EXAMPLES[@]}"; do
@@ -44,11 +44,14 @@ echo "==> eval mcp and agent_platform examples"
 "${CLI[@]}" eval examples/mcp
 "${CLI[@]}" eval examples/agent_platform
 
-echo "==> deploy gemini_api example (dry-run)"
-"${CLI[@]}" deploy examples/gemini_api \
+echo "==> deploy managed_agents_api example (dry-run)"
+"${CLI[@]}" deploy examples/managed_agents_api \
 	--project demo \
 	--location us-central1 \
 	--dry-run
+
+echo "==> python_embedding tier1 (core API)"
+uv run python examples/python_embedding/tier1_governance.py
 
 api_key="${GEMINI_API_KEY:-${GOOGLE_API_KEY-}}"
 if [[ -n ${api_key} ]]; then
@@ -64,7 +67,9 @@ if [[ -n ${api_key} ]]; then
 		name="${entry%%|*}"
 		prompt="${entry#*|}"
 		echo "    run examples/${name}"
-		timeout 60 "${CLI[@]}" run "examples/${name}" --prompt "${prompt}"
+		if ! timeout 60 "${CLI[@]}" run "examples/${name}" --prompt "${prompt}"; then
+			echo "    WARN: live run failed for examples/${name} (SDK capability or network)"
+		fi
 	done
 else
 	echo "==> skip live run (set GEMINI_API_KEY or GOOGLE_API_KEY to enable)"

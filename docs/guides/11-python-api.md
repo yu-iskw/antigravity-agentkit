@@ -1,13 +1,35 @@
 # Python API
 
-AgentKit exposes a small Python library for loading, validating, compiling, running, packaging, deploying, and registering agents. Use it in notebooks, services, and CI jobs when the CLI is not enough. For command-line equivalents, see [Getting started](01-getting-started.md).
+AgentKit is a **Python library** for embedding declarative agents in applications—not only a CLI wrapper. Use it in Slack bots, FastAPI services, workers, notebooks, and CI when you need programmatic control over validation, compilation, and runtime construction.
 
-Install the package (and optional Antigravity SDK):
+Runnable tier examples: [`examples/python_embedding/`](../../examples/python_embedding/).
+
+Install the package and optional extras:
 
 ```bash
 uv sync
-uv sync --extra antigravity   # required for create_agent() and run_chat()
+uv sync --extra antigravity   # Tier 2: create_agent_from_ir, run/chat
+uv sync --extra gcp           # Tier 3: package, deploy, register helpers
 ```
+
+## API tiers
+
+| Tier            | Extra           | Entry points                                                | Network / credentials        |
+| --------------- | --------------- | ----------------------------------------------------------- | ---------------------------- |
+| **1 — Core**    | (base)          | `AgentProject.load`, `validate`, `compile`, `eval`          | None                         |
+| **2 — Runtime** | `[antigravity]` | `antigravity_agentkit.runtime.create_agent_from_ir`         | API key for live model calls |
+| **3 — Deploy**  | `[gcp]`         | `build_deployment_config`, `build_source_package`, `deploy` | Dry-run needs none           |
+
+```mermaid
+flowchart LR
+    App[Python application] --> Load[AgentProject.load]
+    Load --> Validate[validate]
+    Validate --> Compile[compile to CompiledAgentIR]
+    Compile --> Runtime[create_agent_from_ir]
+    Runtime --> Integrate[Slack / FastAPI / worker]
+```
+
+Prefer `from antigravity_agentkit.runtime import create_agent_from_ir` in application code. The `antigravity_agentkit.sdk` package remains an implementation detail.
 
 ## Public exports
 
@@ -17,13 +39,16 @@ uv sync --extra antigravity   # required for create_agent() and run_chat()
 from antigravity_agentkit import (
     AgentProject,
     AgentProjectData,
-    CompiledAgentConfig,
+    CompiledAgentIR,
+    EvalReport,
     RuntimeAgent,
-    compile_agent_config,
-    compile_to_sdk_config,
+    compile_agent_ir,
+    compile_from_data,
     compile_sdk_policies,
+    ir_to_dict,
     load_agent,
     load_agent_directory,
+    load_deployment,
     validate_project,
     build_source_package,
     build_deployment_config,
@@ -35,6 +60,10 @@ from antigravity_agentkit import (
 ```
 
 `load_agent(path)` is an alias for `AgentProject.load(path)`.
+
+`EvalReport` is an alias for `EvalRunResult` from `project.eval()` and `run_evals()`.
+
+Tier 2 runtime helpers (`create_agent_from_ir`, `create_agent_from_project`, …) live in `antigravity_agentkit.runtime` and require `[antigravity]`. See [Create agent (live runtime)](#create-agent-live-runtime).
 
 ## `AgentProject` lifecycle
 
@@ -84,46 +113,85 @@ Profiles and levels are documented in [Validation and evals](08-validation-and-e
 ### Compile
 
 ```python
-compiled = project.compile()
-compiled_prod = project.compile(production=True)
+ir = project.compile()
+ir_prod = project.compile(production=True)
 
-print(len(compiled.system_instructions))
-print(compiled.mcp_servers)
-print(compiled.tools)
-print(compiled.policies)
-print(compiled.vertex)
+print(ir.schema_version)
+print(len(ir.system_instructions))
+print(ir.mcp_servers)
+print(ir.tools)
+print(ir.policies)
+print(ir.vertex)
+print(ir.capabilities)
 ```
 
-`compile()` validates first, then returns a `CompiledAgentConfig` dataclass with rendered system instructions (including skill index), MCP server dicts, delegation tools, policy rules, and Vertex settings.
+`compile()` validates first, then returns a frozen `CompiledAgentIR` dataclass (`schema_version = antigravity-agentkit.ir/v1alpha1`) with rendered system instructions (including skill index), MCP servers, tools, policies, Vertex settings, and capabilities. The IR is JSON-serializable via `ir_to_dict()`.
 
 One-shot compile without holding a project:
 
 ```python
-from antigravity_agentkit import compile_agent_config
+from antigravity_agentkit import compile_agent_ir, ir_to_dict
 
-compiled = compile_agent_config("examples/mcp", production=True)
-sdk_config = compile_to_sdk_config(compiled)
+ir = compile_agent_ir("examples/mcp", production=True)
+payload = ir_to_dict(ir)  # dict suitable for JSON encoding
 ```
 
-`compile_to_sdk_config()` returns a `google.antigravity.LocalAgentConfig` when the SDK is installed.
+To compile from already-loaded `AgentProjectData` (for example after custom preprocessing), use `compile_from_data(project.data)`.
+
+### Eval (mock mode)
+
+```python
+report = project.eval(suite_filter="smoke")
+print(f"{report.passed}/{report.total} passed")
+```
+
+Evaluations use deterministic mock assertions; they do not call the live model. See [Validation and evals](08-validation-and-evals.md).
 
 ### Create agent (live runtime)
 
+`AgentProject.create_agent()` compiles to IR and delegates to `create_agent_from_project`. Prefer the public runtime module in application code:
+
 ```python
-agent = project.create_agent()
-agent_prod = project.create_agent(production=True)
-interactive_agent = project.create_agent(interactive=True)
+from antigravity_agentkit.runtime import (
+    create_agent_from_ir,
+    create_agent_from_project,
+    create_sdk_config_from_ir,
+    chat_response_text,
+)
 
-async def chat_once():
+ir = project.compile(production=True)
+agent = create_agent_from_ir(
+    ir,
+    project_root=project.root,
+    interactive=False,
+    loaded_skills=project.data.skills,
+)
+
+async def classify_once():
     async with agent:
-        return await agent.chat("List datasets in the finance project.")
-
-# Requires: pip install 'antigravity-agentkit[antigravity]'
+        response = await agent.run("Classify this support message...")
+        return await chat_response_text(response)
 ```
+
+Shorthand:
+
+```python
+agent = create_agent_from_project(project, production=True, interactive=False)
+```
+
+You can also use `antigravity_agentkit.sdk` exports; they delegate to the same implementation.
 
 `interactive=True` wires a real `ask_user` approval handler for `askUser` / `requireApproval` policies. The CLI equivalent is `antigravity-agentkit run --interactive`.
 
-Requires `google-antigravity`. Raises `CompilationError` if the extra is missing.
+To load a serialized IR JSON file and create an agent:
+
+```python
+from antigravity_agentkit.runtime import create_agent_from_ir_file
+
+agent = create_agent_from_ir_file(".build/compiled-agent-ir.json", project_root=project.root)
+```
+
+Requires `google-antigravity` (`pip install 'antigravity-agentkit[antigravity]'`). Raises `SdkCompatibilityError` if the extra is missing or the installed SDK cannot accept a compiled feature.
 
 ### Package
 
@@ -169,18 +237,29 @@ CLI equivalents: `antigravity-agentkit run` (one turn), `antigravity-agentkit ch
 
 ### Policy compilation helper
 
-If you build SDK agents manually from compiled policy dicts:
+If you build SDK agents manually from compiled policy IR:
 
 ```python
 from antigravity_agentkit import compile_sdk_policies
+from antigravity_agentkit.sdk.capabilities import SdkCapabilities
 
-policies = compile_sdk_policies(compiled.policies)
-# list of google.antigravity.policy objects
+policies = compile_sdk_policies(
+    ir.policies,
+    capabilities=SdkCapabilities.detect(),
+)
+# tuple of google.antigravity.policy objects
 ```
 
-Non-interactive mode (the default) denies `ask_user` / `require_approval` tool calls via a default handler that returns `False`. Use `create_agent(interactive=True)`, `run_chat(..., interactive=True)`, `run_repl(..., interactive=True)`, or `antigravity-agentkit run|chat --interactive` to approve interactively.
+Non-interactive mode (the default) denies `ask_user` / `require_approval` tool calls via a default handler that returns `False`. Use `create_agent(interactive=True)`, `create_agent_from_ir(..., interactive=True)`, `run_chat(..., interactive=True)`, `run_repl(..., interactive=True)`, or `antigravity-agentkit run|chat --interactive` to approve interactively.
 
 ## Deploy and registry helpers
+
+Deploy targets use canonical names in `deployment.yaml`:
+
+| Canonical target         | Accepted alias   | Primary artifact                   |
+| ------------------------ | ---------------- | ---------------------------------- |
+| `agent-platform-runtime` | `agent-platform` | `deployment-config.json` + package |
+| `managed-agents-api`     | `gemini-api`     | `gemini-agent-config.json`         |
 
 ```python
 from antigravity_agentkit import (
@@ -190,8 +269,8 @@ from antigravity_agentkit import (
     deploy,
     build_agent_registry_metadata,
     publish_skill,
+    load_deployment,
 )
-from antigravity_agentkit.deploy import load_deployment
 
 project = AgentProject.load("src/antigravity_agentkit/tests/fixtures/ship_agent")
 deployment = load_deployment(project.root)
@@ -234,7 +313,7 @@ Eval YAML format: [Validation and evals](08-validation-and-evals.md).
 | ----------------------------------------------------- | -------------------------------------------------------- |
 | You are exploring locally (`init`, `validate`, `run`) | CI needs programmatic pass/fail without shelling out     |
 | Operators run one-off commands                        | You embed AgentKit in a service or notebook              |
-| Shell scripts and Make targets suffice                | You need fine-grained access to `CompiledAgentConfig`    |
+| Shell scripts and Make targets suffice                | You need fine-grained access to `CompiledAgentIR`        |
 | Human-readable Rich output is enough                  | You compose steps (validate → compile → custom artifact) |
 
 The CLI is a thin Typer wrapper around the same library functions. Behavior should match; prefer the API when you need return values, exception handling, or custom orchestration.
@@ -242,8 +321,7 @@ The CLI is a thin Typer wrapper around the same library functions. Behavior shou
 ## End-to-end example
 
 ```python
-from antigravity_agentkit import AgentProject, deploy, build_agent_registry_metadata
-from antigravity_agentkit.deploy import load_deployment
+from antigravity_agentkit import AgentProject, deploy, build_agent_registry_metadata, load_deployment
 
 AGENT = "examples/hello_world"
 PROJECT_ID = "my-gcp-project"
@@ -256,7 +334,8 @@ deployment = load_deployment(project.root)
 project.validate(production=True)
 
 # 2. Inspect compile output
-compiled = project.compile(production=True)
+ir = project.compile(production=True)
+print(ir.schema_version, len(ir.system_instructions))
 
 # 3. Package + deployment config
 deploy_summary = deploy(project, deployment, PROJECT_ID, LOCATION, dry_run=True)

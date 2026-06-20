@@ -86,12 +86,15 @@ def test_build_agent_registry_metadata_from_ship_fixture(
         PROVENANCE_ENV_PACKAGE_DIGEST: "deadbeef",
     }
     with patch.dict(os.environ, env, clear=False):
-        metadata = build_agent_registry_metadata(project, deployment)
+        metadata = build_agent_registry_metadata(
+            project,
+            deployment,
+            location=TEST_GCP_LOCATION,
+        )
 
-    assert metadata["name"] == "ship-agent"
-    assert metadata["deployment"]["target"] == "agent-platform"
-    assert metadata["deployment"]["serviceAccount"] == deployment.spec.service_account
-    assert metadata["runtime"]["framework"] == "antigravity"
+    assert metadata["agent"]["name"] == "ship-agent"
+    assert metadata["target"]["name"] == "agent-platform-runtime"
+    assert metadata["identity"]["serviceAccount"] == deployment.spec.service_account
     assert "generatedAt" in metadata
     assert metadata["gitSha"] == "abc123"
     assert metadata["packageDigest"] == "deadbeef"

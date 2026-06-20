@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from antigravity_agentkit.exceptions import LoadError, ValidationError
+from antigravity_agentkit.ir import PolicyRuleIR
 from antigravity_agentkit.schema.policies import PolicyDocument, PolicyRule
 
 _POLICY_SECTIONS = ("allow", "deny", "askUser", "requireApproval")
@@ -102,6 +103,19 @@ def compile_policy_dicts(policies: PolicyDocument) -> list[dict[str, Any]]:
         compiled.append({"tool": "*", "decision": "deny", "default": True})
 
     return compiled
+
+
+def compile_policies_to_ir(policies: PolicyDocument) -> tuple[PolicyRuleIR, ...]:
+    """Compile policies to frozen policy IR."""
+    return tuple(
+        PolicyRuleIR(
+            decision=rule["decision"],  # type: ignore[arg-type]
+            tool=rule.get("tool"),
+            default=bool(rule.get("default", False)),
+            when=dict(rule.get("when") or {}),
+        )
+        for rule in compile_policy_dicts(policies)
+    )
 
 
 def resolve_tool_decision(
