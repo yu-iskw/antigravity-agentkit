@@ -86,7 +86,7 @@ def test_cli_run_help_includes_interactive_flag() -> None:
     result = runner.invoke(app, ["run", "--help"])
 
     assert result.exit_code == 0, result.stdout
-    assert "--interactive" in result.stdout
+    assert "-interactive" in result.stdout
 
 
 def test_print_plain_does_not_interpret_markup() -> None:

@@ -47,6 +47,7 @@ jobs:
           path: |
             src/antigravity_agentkit/tests/fixtures/ship_agent/.build/
           if-no-files-found: error
+          include-hidden-files: true
 
       # Platform apply is intentionally out of scope for AgentKit.
       # Use Google Cloud Agents CLI or your GitOps/Terraform pipeline to
