@@ -166,6 +166,15 @@ def test_cli_local_session_help_includes_interactive_flag(command: str) -> None:
         assert "-prompt" in result.stdout
 
 
+@pytest.mark.parametrize("command", ["deploy", "rollback"])
+def test_cli_platform_commands_do_not_offer_no_wait(command: str) -> None:
+    """Platform mutations document their blocking SDK behavior."""
+    result = runner.invoke(app, [command, "--help"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "no-wait" not in result.stdout
+
+
 def test_cli_chat_invokes_run_repl(
     hello_world_agent_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

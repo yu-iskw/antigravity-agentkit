@@ -7,6 +7,19 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class EvalJudge(BaseModel):
+    """Optional LLM-as-judge configuration for an eval case."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    prompt_template: str | None = Field(default=None, alias="promptTemplate")
+    judge_model: str | None = Field(default=None, alias="judgeModel")
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.prompt_template or self.judge_model)
+
+
 class EvalExpected(BaseModel):
     """Expected assertions for an evaluation case."""
 
@@ -24,6 +37,9 @@ class EvalExpected(BaseModel):
         default_factory=list,
         alias="forbiddenPatterns",
     )
+    reference_answer: str | None = Field(default=None, alias="referenceAnswer")
+    metric: str | None = None
+    threshold: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class EvalToolConstraints(BaseModel):
@@ -44,6 +60,11 @@ class EvalCase(BaseModel):
     input: str = Field(..., min_length=1)
     expected: EvalExpected = Field(default_factory=EvalExpected)
     tools: EvalToolConstraints = Field(default_factory=EvalToolConstraints)
+    judge: EvalJudge = Field(default_factory=EvalJudge)
+
+    @property
+    def uses_custom_judge(self) -> bool:
+        return self.judge.is_configured
 
     @field_validator("name")
     @classmethod

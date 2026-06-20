@@ -216,17 +216,30 @@ def test_deploy_managed_agents_implicit_dry_run_with_credentials(
     assert Path(summary["config_path"]).is_file()
 
 
-def test_deploy_managed_agents_live_raises_not_implemented(
+def test_deploy_managed_agents_live_calls_api(
     gemini_deploy_context: tuple[AgentProject, DeploymentManifest],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Live Managed Agents API deploy raises until Agents API apply is implemented."""
+    """Live Managed Agents API deploy posts gemini-agent-config."""
     project, deployment = gemini_deploy_context
+    calls: list[dict[str, object]] = []
 
-    with pytest.raises(DeployError, match="not implemented"):
-        deploy(
-            project,
-            deployment,
-            TEST_GCP_PROJECT,
-            TEST_GCP_LOCATION,
-            dry_run=False,
-        )
+    def fake_create(config: dict[str, object]) -> dict[str, object]:
+        calls.append(config)
+        return {"status": "deployed", "agentId": str(config.get("id", ""))}
+
+    monkeypatch.setattr(
+        "antigravity_agentkit.platform.managed_agents.create_managed_agent",
+        fake_create,
+    )
+
+    summary = deploy(
+        project,
+        deployment,
+        TEST_GCP_PROJECT,
+        TEST_GCP_LOCATION,
+        dry_run=False,
+    )
+
+    assert summary["status"] == "deployed"
+    assert calls

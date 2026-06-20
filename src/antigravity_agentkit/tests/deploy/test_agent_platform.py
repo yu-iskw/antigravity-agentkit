@@ -10,7 +10,6 @@ import yaml
 
 from antigravity_agentkit.deploy import build_deployment_config, deploy
 from antigravity_agentkit.deploy._common import has_gcp_credentials
-from antigravity_agentkit.exceptions import DeployError
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.tests.constants import TEST_GCP_LOCATION, TEST_GCP_PROJECT
@@ -41,8 +40,10 @@ def test_build_deployment_config_includes_scaling_gateway_and_identity(
         "egressPolicy": "restricted",
         "requiredEndpoints": ["https://example.googleapis.com"],
     }
-    assert config["entrypoint_module"] == "agent"
-    assert config["entrypoint_object"] == "root_agent"
+    assert config["entrypoint_module"] == "platform_adapter"
+    assert config["entrypoint_object"] == "platform_app"
+    assert config["class_methods"]
+    assert config["agent_framework"] == "custom"
     assert config["requirements_file"] == "requirements.txt"
 
 
@@ -227,17 +228,41 @@ def test_deploy_implicit_dry_run_without_credentials(
     assert summary["status"] == "dry_run"
 
 
-def test_deploy_live_raises_not_implemented(
+def test_deploy_live_uses_agent_engine_client(
     ship_context: tuple[AgentProject, DeploymentManifest],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Live deploy always raises until Agent Runtime apply is implemented."""
+    """Live deploy delegates to platform agent engine client."""
     project, deployment = ship_context
+    calls: dict[str, object] = {}
 
-    with pytest.raises(DeployError, match="not implemented"):
-        deploy(
-            project,
-            deployment,
-            TEST_GCP_PROJECT,
-            TEST_GCP_LOCATION,
-            dry_run=False,
-        )
+    class FakeClient:
+        """Stub Agent Engine client for live deploy tests."""
+
+        def create(self, *, config: dict[str, object]) -> dict[str, str]:
+            calls["config"] = config
+            return {"resourceName": "projects/demo/locations/us-central1/reasoningEngines/1"}
+
+        def update(self, *, name: str, config: dict[str, object]) -> dict[str, str]:
+            del name, config
+            raise AssertionError("update should not be called")
+
+        def get(self, *, name: str) -> dict[str, str]:
+            return {"resourceName": name}
+
+    monkeypatch.setattr(
+        "antigravity_agentkit.platform.agent_engines.create_vertex_agent_engine_client",
+        lambda _project_id, _location: FakeClient(),
+    )
+
+    summary = deploy(
+        project,
+        deployment,
+        TEST_GCP_PROJECT,
+        TEST_GCP_LOCATION,
+        dry_run=False,
+    )
+
+    assert summary["status"] == "deployed"
+    assert "resourceName" in summary
+    assert calls["config"] is not None

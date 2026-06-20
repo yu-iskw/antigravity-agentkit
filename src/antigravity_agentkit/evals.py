@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
+import time
 from dataclasses import dataclass, field
+from typing import Literal
 
 from antigravity_agentkit.exceptions import EvalError
 from antigravity_agentkit.policies import resolve_tool_decision
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.evals import EvalCase, EvalSuite
+
+EvalRunMode = Literal["mock", "live", "platform"]
 
 
 @dataclass
@@ -125,7 +130,7 @@ def _check_tool_constraints(
     return failures
 
 
-def _run_case(
+def _run_case_mock(
     project: AgentProject,
     suite_path: str,
     case: EvalCase,
@@ -148,11 +153,96 @@ def _run_case(
     )
 
 
-def run_evals(
+async def _run_live_cases(
+    project: AgentProject,
+    items: list[tuple[str, EvalCase]],
+) -> list[EvalCaseResult]:
+    """Run eval cases against one live SDK agent instance."""
+    from antigravity_agentkit.runtime import RuntimeAgent
+
+    runtime = RuntimeAgent(project)
+    results: list[EvalCaseResult] = []
+    for suite_path, case in items:
+        started = time.monotonic()
+        response_text = await runtime.run_chat(case.input)
+        elapsed = time.monotonic() - started
+
+        failures: list[str] = []
+        failures.extend(_check_mentions(response_text, case.expected.must_mention, required=True))
+        failures.extend(
+            _check_mentions(response_text, case.expected.must_not_mention, required=False)
+        )
+        failures.extend(_check_forbidden_patterns(response_text, case.expected.forbidden_patterns))
+        if (
+            case.expected.max_latency_seconds is not None
+            and elapsed > case.expected.max_latency_seconds
+        ):
+            failures.append(
+                f"Latency {elapsed:.2f}s exceeds max {case.expected.max_latency_seconds}s"
+            )
+        if case.expected.reference_answer and (
+            case.expected.reference_answer.lower() not in response_text.lower()
+        ):
+            failures.append("Response did not match reference answer substring.")
+
+        results.append(
+            EvalCaseResult(
+                name=case.name,
+                suite_path=suite_path,
+                passed=not failures,
+                failures=failures,
+                mock_response=response_text,
+                mock_tools=[],
+            )
+        )
+    return results
+
+
+def run_evals(  # noqa: PLR0913
     project: AgentProject,
     suite_filter: str | None = None,
+    *,
+    mode: EvalRunMode = "mock",
+    resource_name: str | None = None,
+    project_id: str | None = None,
+    location: str | None = None,
 ) -> EvalRunResult:
-    """Run evaluation suites using deterministic mock-mode checks."""
+    """Run evaluation suites using mock, live, or platform mode."""
+    if mode == "platform":
+        if not resource_name or not project_id or not location:
+            raise EvalError("Platform eval requires --resource-name, --project, and --location.")
+        from antigravity_agentkit.platform.evals import (
+            export_platform_dataset,
+            run_platform_eval_suite,
+        )
+
+        dataset = export_platform_dataset(project, suite_filter=suite_filter)
+        if not dataset["cases"]:
+            if suite_filter and project.data.evals:
+                raise EvalError(f"No eval suites matched filter: {suite_filter!r}")
+            return EvalRunResult()
+        platform_result = run_platform_eval_suite(
+            dataset,
+            project_id=project_id,
+            location=location,
+            resource_name=resource_name,
+        )
+        result = EvalRunResult()
+        for case in platform_result["caseResults"]:
+            case_result = EvalCaseResult(
+                name=str(case["name"]),
+                suite_path=str(case["suitePath"]),
+                passed=bool(case["passed"]),
+                failures=[str(failure) for failure in case["failures"]],
+            )
+            result.cases.append(case_result)
+            result.total += 1
+            if case_result.passed:
+                result.passed += 1
+            else:
+                result.failed += 1
+        return result
+
     result = EvalRunResult()
     eval_entries = project.data.evals
     if not eval_entries:
@@ -165,8 +255,19 @@ def run_evals(
 
         raw = entry.get("raw", entry.get("suite", {}))
         suite = EvalSuite.from_dict(raw)
+        if mode == "live":
+            live_items = [(suite_path, case) for case in suite.cases]
+            case_results = asyncio.run(_run_live_cases(project, live_items))
+            for case_result in case_results:
+                result.cases.append(case_result)
+                result.total += 1
+                if case_result.passed:
+                    result.passed += 1
+                else:
+                    result.failed += 1
+            continue
         for case in suite.cases:
-            case_result = _run_case(project, suite_path, case)
+            case_result = _run_case_mock(project, suite_path, case)
             result.cases.append(case_result)
             result.total += 1
             if case_result.passed:

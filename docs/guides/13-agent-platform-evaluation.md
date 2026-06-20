@@ -4,16 +4,16 @@ This guide explains how **antigravity-agentkit** evals relate to **Gemini Enterp
 
 **Related guides:** [Validation and evals](08-validation-and-evals.md) · [Packaging and deployment](09-packaging-and-deployment.md) · [Production workflows](12-production-workflows.md)
 
-For the ownership boundary, see [ADR 0003: Agent Platform boundary](../adr/0003-agent-platform-boundary.md).
+For the ownership boundary, see [ADR 0003](../adr/0003-agent-platform-boundary.md) and [ADR 0004](../adr/0004-native-platform-operations.md).
 
 ## Two evaluation layers
 
-| Layer                   | Who runs it   | When         | Question it answers                                                    |
-| ----------------------- | ------------- | ------------ | ---------------------------------------------------------------------- |
-| **AgentKit mock eval**  | Authors / CI  | Every PR     | Did governance assertions pass? (mentions, tool allow/deny, policies)  |
-| **Agent Platform eval** | Platform team | After deploy | Did the agent behave well? (task success, safety, tool quality, drift) |
+| Layer                   | Who runs it                   | When         | Question it answers                                                   |
+| ----------------------- | ----------------------------- | ------------ | --------------------------------------------------------------------- |
+| **AgentKit mock eval**  | Authors / CI                  | Every PR     | Did governance assertions pass? (mentions, tool allow/deny, policies) |
+| **Agent Platform eval** | Platform team / CI with creds | After deploy | `eval --mode platform` or console SDK                                 |
 
-`antigravity-agentkit eval` does **not** call Agent Platform APIs. It runs deterministic mock checks — see [Validation and evals](08-validation-and-evals.md). Platform evaluation uses the console or `vertexai.Client().evals` against a deployed Agent Runtime with Cloud Trace telemetry.
+`antigravity-agentkit eval` runs mock checks by default — see [Validation and evals](08-validation-and-evals.md). Use `eval --mode platform` (requires `[gcp]` and a deployed resource) or the console / `vertexai.Client().evals` for trace-backed quality evaluation.
 
 ## Architecture
 
@@ -96,30 +96,27 @@ uv run antigravity-agentkit deploy examples/agent_platform \
 
 Artifacts land under `.build/platform-assistant/` and `deployment-config.json`. The repository script [`dev/test_agent_platform.sh`](../../dev/test_agent_platform.sh) runs validate through register dry-run but stops before Platform evaluation.
 
-### Stage 3 — Post-deploy (Platform team)
+### Stage 3 — Post-deploy evaluation
 
-AgentKit does not implement these steps. Platform operators run them after Agent Runtime is live:
+After Agent Runtime is live:
 
-1. **Deploy** the bundle via [Agents CLI](https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/runtime) using the emitted `deployment-config.json`.
-2. **Enable GenAI OTEL** on the runtime ([offline eval prerequisites](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-offline)):
+1. **Enable GenAI OTEL** on the runtime ([offline eval prerequisites](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-offline)):
    - `OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental`
    - `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=EVENT_ONLY`
-3. **Regression / rapid eval:** console or SDK — `generate_conversation_scenarios` → `run_inference` → `evaluate` ([Evaluate your agents](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-agents)).
-4. **Production:** online monitors on sampled traces ([Continuous evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-online)).
-5. **Improve:** review results and run the optimizer loop ([Agent evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/agent-evaluation)).
-
-Seed Platform test cases manually from AgentKit `input` fields (for example, “What is the current UTC time?” from smoke evals) until an exporter exists.
+2. **Regression / rapid eval:** run `antigravity-agentkit eval --mode platform --project ... --location ... --resource-name ...`. AgentKit exports selected suites, runs inference against the deployed resource, and evaluates the returned dataset.
+3. **Production:** configure online monitors on sampled traces ([Continuous evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-online)).
+4. **Improve:** review results and run the optimizer loop ([Agent evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/agent-evaluation)).
 
 ## Eval schema relationship
 
-AgentKit `evals/*.yaml` and Platform eval datasets are **separate formats** today:
+AgentKit converts `evals/*.yaml` cases into the Platform inference/evaluation workflow:
 
 ```mermaid
 flowchart LR
     subgraph agentkitEval [AgentKit evals YAML]
         Input[input]
-        MustMention[mustMention]
-        Tools[tools allowed/denied]
+        Reference[referenceAnswer]
+        Metric[metric and threshold]
     end
 
     subgraph platformEval [Platform eval]
@@ -128,22 +125,29 @@ flowchart LR
         Metrics[autorater metrics]
     end
 
-    Input -.->|"manual seed today"| Scenarios
-    MustMention -.-x Metrics
-    Tools -.-x Traces
+    Input --> Scenarios
+    Reference --> Metrics
+    Metric --> Metrics
 ```
 
-AgentKit [`EvalCase`](../../src/antigravity_agentkit/schema/evals.py) supports `input`, `mustMention`, tool constraints, and regex patterns — not Platform reference answers or autorater metric names.
+Each case defaults to `general_quality_v1`. An explicit `threshold` fails the case when its score
+is lower; without a threshold, a valid score passes and SDK or metric errors fail. `--suite` filters
+the exported cases before any Platform request.
+
+Execution mode is not part of eval suite YAML. Mock mode is the default, and live or Platform
+execution must be selected explicitly with `--mode` or the Python `mode` argument. The optional
+`judge.promptTemplate` and `judge.judgeModel` fields are preserved by `eval-export` for external
+dataset consumers; the built-in Platform runner currently rejects cases containing either field.
 
 ## What AgentKit does and does not do
 
-| In scope (AgentKit)                         | Out of scope (Platform / Tier D)                       |
-| ------------------------------------------- | ------------------------------------------------------ |
-| Declare `evals/*.yaml` in `agent.yaml`      | Run `client.evals.evaluate()`                          |
-| Mock-mode `antigravity-agentkit eval` in CI | Offline trace/session scoring in console               |
-| Copy eval files into ship packages          | Online quality monitors                                |
-| `validate` + `package` + deploy dry-run     | Prompt optimizer flywheel                              |
-| Document handoff to platform team           | Live `deploy()` to Agent Runtime (not implemented yet) |
+| In scope (AgentKit)                         | Out of scope (platform-team infra)               |
+| ------------------------------------------- | ------------------------------------------------ |
+| Declare `evals/*.yaml` in `agent.yaml`      | Terraform telemetry buckets / BQ datasets        |
+| Mock-mode `antigravity-agentkit eval` in CI | IAM role binding apply                           |
+| `eval-export`, `eval --mode platform`       | Model Armor / Gateway infrastructure beyond YAML |
+| Live `deploy`, `register --live`, `publish` | Agents CLI scaffold parity                       |
+| OTEL env vars via `spec.observability`      |                                                  |
 
 ## Platform evaluation reference
 
@@ -159,12 +163,9 @@ AgentKit [`EvalCase`](../../src/antigravity_agentkit/schema/evals.py) supports `
 | Alerts          | [Quality alerts](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/quality-alerts)                    |
 | Optimization    | [Optimize your agent](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/optimize-agent)               |
 
-## Future extensions (not implemented)
+## Implemented M3 extensions
 
-If teams need tighter integration later, the smallest useful additions would be:
-
-- Optional `eval export` emitting Platform-ready JSON from `input` fields only
-- OTEL env var hints compiled into `deployment-config.json` from `deployment.yaml`
-- Local live eval behind an explicit flag (still separate from Platform SDK)
-
-None of these are required for the hybrid workflow described above.
+- `antigravity-agentkit eval-export` — Platform dataset JSON from `evals/*.yaml`
+- `antigravity-agentkit eval --mode platform` — `client.evals` against deployed runtime
+- `antigravity-agentkit eval-compare` — diff two result files
+- OTEL env vars compiled from `deployment.yaml` `spec.observability`

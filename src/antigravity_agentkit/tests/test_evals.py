@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -22,6 +24,71 @@ def test_run_evals_mock_mode_passes_mcp_smoke(mcp_agent_dir: Path) -> None:
     assert result.success
     assert result.cases[0].name == "current-time"
     assert result.cases[0].mock_tools == ["mcp.clock.get_utc_time"]
+
+
+def test_run_evals_live_mode_requires_explicit_argument(
+    mcp_agent_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default execution stays mock while an explicit live mode uses the runtime."""
+    project = AgentProject.load(mcp_agent_dir)
+    run_chat = AsyncMock(return_value="The current UTC time is available.")
+    monkeypatch.setattr(
+        "antigravity_agentkit.runtime.RuntimeAgent.run_chat",
+        run_chat,
+    )
+
+    mock_result = run_evals(project)
+    live_result = run_evals(project, mode="live")
+
+    assert mock_result.cases[0].mock_tools == ["mcp.clock.get_utc_time"]
+    assert live_result.total == 1
+    run_chat.assert_awaited_once()
+
+
+def test_run_evals_platform_mode_requires_explicit_argument(
+    mcp_agent_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit platform mode dispatches the selected cases to Platform eval."""
+    project = AgentProject.load(mcp_agent_dir)
+    calls = 0
+
+    def fake_run_platform_eval_suite(
+        dataset: dict[str, Any],
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        case = dataset["cases"][0]
+        return {
+            "caseResults": [
+                {
+                    "name": case["name"],
+                    "suitePath": case["suitePath"],
+                    "passed": True,
+                    "failures": [],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        "antigravity_agentkit.platform.evals.run_platform_eval_suite",
+        fake_run_platform_eval_suite,
+    )
+
+    mock_result = run_evals(project)
+    platform_result = run_evals(
+        project,
+        mode="platform",
+        resource_name="projects/p/locations/l/reasoningEngines/1",
+        project_id="p",
+        location="l",
+    )
+
+    assert mock_result.total == 1
+    assert platform_result.passed == 1
+    assert calls == 1
 
 
 def test_mock_eval_fails_for_missing_required_phrase(mcp_agent_dir: Path) -> None:

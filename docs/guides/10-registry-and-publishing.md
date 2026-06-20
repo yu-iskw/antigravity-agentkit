@@ -1,6 +1,6 @@
 # Registry and publishing
 
-AgentKit helps you publish **skills** to Skill Registry and emit **agent metadata** for Agent Registry. Both commands are local stubs today: they validate, package, and write JSON (or zip) artifacts you can feed into CI/CD or future cloud APIs. For deployment artifacts, see [Packaging and deployment](09-packaging-and-deployment.md).
+AgentKit supports **local stubs and live apply** for registry operations with `--live` on `register` and `publish-skill`, plus `publish` for Gemini Enterprise catalog registration.
 
 ## Agent Registry: `antigravity-agentkit register`
 
@@ -152,7 +152,16 @@ See [Python API](11-python-api.md) for the full surface.
 
 ## `skills.lock` (revision pinning)
 
-Skill Registry revisions are immutable. After publishing, pin what your agent uses in a `skills.lock` file at the agent root (convention from [RFC 0001](../rfcs/0001-declarative-antigravity-agentkit.md); AgentKit does not read or write this file yet).
+Skill Registry revisions are immutable. Publish live and request a lock update to pin the returned
+revision in `skills.lock` at the nearest parent agent root:
+
+```bash
+uv run antigravity-agentkit publish-skill ./skills/bigquery-analysis \
+  --project my-project --location us-central1 --live --write-lock
+```
+
+`--write-lock` requires `--live`. AgentKit validates and merges an existing version 1 lock without
+removing other skill entries; malformed locks are left untouched.
 
 ```yaml
 version: 1
@@ -166,8 +175,8 @@ skills:
 
 Recommended workflow:
 
-1. `antigravity-agentkit publish-skill` → note `sha256` and cloud revision ID from your upload step.
-2. Update `skills.lock` in the agent repo.
+1. `antigravity-agentkit publish-skill --live --write-lock` uploads the archive.
+2. Review the merged immutable revision and digest in `skills.lock`.
 3. Run [validation](08-validation-and-evals.md) and [evals](08-validation-and-evals.md) before [packaging](09-packaging-and-deployment.md).
 
 Commit `skills.lock` alongside `agent.yaml` so production builds resolve the same skill revision every time.
