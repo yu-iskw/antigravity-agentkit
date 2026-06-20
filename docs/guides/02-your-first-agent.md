@@ -159,7 +159,7 @@ Optional first message, then continue at the `You:` prompt:
 antigravity-agentkit chat my-agent --prompt "Hello"
 ```
 
-Type `exit` or `quit` (or press Ctrl-D) to leave. Use `--interactive` when `policies.yaml` requires human approval for tool calls.
+Type `exit` or `quit` (or press Ctrl-C or Ctrl-D) to leave. Use `--interactive` when `policies.yaml` requires human approval for tool calls.
 
 ## Walkthrough: hello_world example
 

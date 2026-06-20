@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import pty
+import select
+import signal
+import subprocess
+import sys
 from unittest.mock import create_autospec
+
+import pytest
 
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.runtime import ReplIO, RuntimeAgent, chat_response_text
@@ -154,3 +162,59 @@ def test_run_repl_skips_empty_lines() -> None:
     )
 
     assert session.prompts == ["hello"]
+
+
+def test_run_repl_stops_on_eof() -> None:
+    """run_repl closes the session when stdin reaches EOF."""
+    session = _ReplSessionAgent()
+    runtime = _runtime_with_agent(session)
+
+    def _raise_eof(prompt: str) -> str:
+        del prompt
+        raise EOFError
+
+    asyncio.run(runtime.run_repl(io=ReplIO(input_fn=_raise_eof)))
+
+    assert not session.prompts
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="PTYs are unavailable on Windows")
+def test_repl_prompt_ctrl_c_exits_without_more_input() -> None:
+    """Ctrl-C cancels the stdin prompt without requiring another line."""
+    master_fd, slave_fd = pty.openpty()
+    command = [
+        sys.executable,
+        "-c",
+        (
+            "import asyncio, signal\n"
+            "from antigravity_agentkit.runtime import _read_repl_prompt\n"
+            "signal.signal(signal.SIGINT, signal.default_int_handler)\n"
+            "try:\n"
+            "    asyncio.run(_read_repl_prompt(input))\n"
+            "except KeyboardInterrupt:\n"
+            "    pass\n"
+        ),
+    ]
+    process = subprocess.Popen(  # noqa: S603
+        command,
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        close_fds=True,
+    )
+    os.close(slave_fd)
+
+    try:
+        readable, _, _ = select.select([master_fd], [], [], 2)
+        assert readable, "REPL prompt was not written"
+        assert b"You: " in os.read(master_fd, 1024)
+
+        os.kill(process.pid, signal.SIGINT)
+        process.wait(timeout=2)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        os.close(master_fd)
+
+    assert process.returncode == 0
