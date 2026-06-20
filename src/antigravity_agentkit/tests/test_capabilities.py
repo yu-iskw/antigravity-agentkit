@@ -51,9 +51,9 @@ def test_enable_subagents_false_disables_runtime_subagents(subagents_agent_dir: 
     data.manifest.spec.runtime.capabilities.enable_subagents = False
     compiled = compile_from_data(data)
 
-    assert compiled.capabilities["enableSubagents"] is False
+    assert compiled.capabilities.enable_subagents is False
     assert compiled.subagents
-    tool_names = [tool["name"] for tool in compiled.tools if isinstance(tool, dict)]
+    tool_names = [tool.name for tool in compiled.tools]
     assert "delegate_to_proofreader" not in tool_names
     assert "## Available Subagents" not in compiled.system_instructions
 

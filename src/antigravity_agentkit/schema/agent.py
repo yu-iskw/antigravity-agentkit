@@ -278,23 +278,6 @@ class AgentProjectData:
     evals: list[dict[str, Any]] = field(default_factory=list)
 
 
-@dataclass
-class CompiledAgentConfig:
-    """Compiled Antigravity runtime configuration."""
-
-    system_instructions: str
-    mcp_servers: list[dict[str, Any]] = field(default_factory=list)
-    tools: list[Any] = field(default_factory=list)
-    runtime_tools: list[Any] = field(default_factory=list)
-    policies: list[dict[str, Any]] = field(default_factory=list)
-    capabilities: dict[str, Any] = field(default_factory=dict)
-    subagents: list[dict[str, Any]] = field(default_factory=list)
-    vertex: dict[str, Any] = field(default_factory=dict)
-    model: str | None = None
-    skill_index: Any = None
-    skills_paths: list[str] = field(default_factory=list)
-
-
 # Re-export related document types commonly loaded alongside manifests.
 __all__ = [
     "AgentManifest",
@@ -303,7 +286,6 @@ __all__ = [
     "AgentRegistryConfig",
     "AgentSpec",
     "CapabilitiesConfig",
-    "CompiledAgentConfig",
     "EvalsSpec",
     "InstructionsSpec",
     "McpAdmissionPolicy",

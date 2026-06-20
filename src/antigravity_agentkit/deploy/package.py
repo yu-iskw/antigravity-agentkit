@@ -1,15 +1,19 @@
-"""Build deployable source packages from compiled agent configuration."""
+"""Build deployable source packages from compiled agent IR."""
 
 from __future__ import annotations
 
+import hashlib
+import importlib.metadata
 import json
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
 from antigravity_agentkit.exceptions import DeployError, LoadError
+from antigravity_agentkit.ir import IR_SCHEMA_VERSION, CompiledAgentIR
+from antigravity_agentkit.ir_serde import ir_to_json
 from antigravity_agentkit.paths import resolve_project_path
 from antigravity_agentkit.project import AgentProject
-from antigravity_agentkit.schema.agent import CompiledAgentConfig
 
 _EXCLUDED_DIRECTORY_NAMES = frozenset(
     {
@@ -61,15 +65,26 @@ def _package_entries(project_root: Path) -> list[tuple[Path, Path]]:
     return entries
 
 
-def _copy_project_tree(entries: list[tuple[Path, Path]], build_root: Path) -> None:
-    """Copy validated agent source entries into the package."""
+def _sha256_bytes(data: bytes) -> str:
+    return f"sha256:{hashlib.sha256(data).hexdigest()}"
+
+
+def _copy_project_tree(
+    entries: list[tuple[Path, Path]],
+    build_root: Path,
+) -> dict[str, str]:
+    """Copy validated agent source entries and hash each file in one read."""
+    source_hashes: dict[str, str] = {}
     for source, relative_path in entries:
         destination = build_root / relative_path
         if source.is_dir():
             destination.mkdir(parents=True, exist_ok=True)
         elif source.is_file():
+            data = source.read_bytes()
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
+            destination.write_bytes(data)
+            source_hashes[relative_path.as_posix()] = _sha256_bytes(data)
+    return source_hashes
 
 
 def _validate_build_root(project_root: Path, build_root: Path) -> None:
@@ -86,21 +101,30 @@ def _validate_build_root(project_root: Path, build_root: Path) -> None:
             )
 
 
+def _agentkit_version() -> str:
+    try:
+        return importlib.metadata.version("antigravity-agentkit")
+    except importlib.metadata.PackageNotFoundError:
+        return "0.0.0"
+
+
 def _write_package_files(
     project: AgentProject,
     build_root: Path,
-    compiled: CompiledAgentConfig,
+    compiled: CompiledAgentIR,
+    source_hashes: dict[str, str],
 ) -> None:
-    """Write generated runtime entrypoint and package metadata."""
+    """Write generated runtime entrypoint, IR, lockfile, and package metadata."""
     manifest = project.data.manifest
 
     metadata = {
         "agentName": manifest.metadata.name,
         "compiled": {
-            "vertex": compiled.vertex,
-            "mcpServers": [server.get("name") for server in compiled.mcp_servers],
+            "vertexEnabled": compiled.vertex.enabled,
+            "mcpServers": [server.name for server in compiled.mcp_servers],
             "toolCount": len(compiled.tools),
             "policyCount": len(compiled.policies),
+            "irSchemaVersion": compiled.schema_version,
         },
     }
     (build_root / "metadata.json").write_text(
@@ -108,10 +132,34 @@ def _write_package_files(
         encoding="utf-8",
     )
 
+    (build_root / "compiled-agent-ir.json").write_text(
+        ir_to_json(compiled),
+        encoding="utf-8",
+    )
+
+    lockfile = {
+        "agentkitVersion": _agentkit_version(),
+        "irSchemaVersion": IR_SCHEMA_VERSION,
+        "generatedAt": datetime.now(UTC).isoformat(),
+        "sourceHashes": source_hashes,
+        "sdkCompatibility": {
+            "minimumGoogleAntigravity": "0.1.4",
+        },
+    }
+    (build_root / "agentkit.lock.json").write_text(
+        json.dumps(lockfile, indent=2),
+        encoding="utf-8",
+    )
+
     entrypoint = (
         '"""Generated Antigravity AgentKit runtime entrypoint."""\n\n'
-        "from antigravity_agentkit.project import AgentProject\n\n"
-        'root_agent = AgentProject.load(".").create_agent()\n'
+        "import os\n\n"
+        "from antigravity_agentkit.project import AgentProject\n"
+        "from antigravity_agentkit.runtime import create_agent_from_ir_file\n\n"
+        'if os.getenv("AGENTKIT_RECOMPILE_FROM_SOURCE") == "1":\n'
+        '    root_agent = AgentProject.load(".").create_agent()\n'
+        "else:\n"
+        '    root_agent = create_agent_from_ir_file("compiled-agent-ir.json", project_root=".")\n'
     )
     (build_root / "agent.py").write_text(entrypoint, encoding="utf-8")
 
@@ -122,6 +170,8 @@ def _write_package_files(
 def build_source_package(
     project: AgentProject,
     output_dir: str | Path | None = None,
+    *,
+    compiled: CompiledAgentIR | None = None,
 ) -> Path:
     """Build a deployable source package from the agent directory."""
     build_root = (
@@ -131,11 +181,11 @@ def build_source_package(
     _validate_build_root(project.root, build_root)
 
     package_entries = _package_entries(project.root)
-    compiled = project.compile()
+    ir = compiled if compiled is not None else project.compile()
     if build_root.exists():
         shutil.rmtree(build_root)
     build_root.mkdir(parents=True)
 
-    _copy_project_tree(package_entries, build_root)
-    _write_package_files(project, build_root, compiled)
+    source_hashes = _copy_project_tree(package_entries, build_root)
+    _write_package_files(project, build_root, ir, source_hashes)
     return build_root

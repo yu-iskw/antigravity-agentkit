@@ -2,7 +2,20 @@
 
 This guide covers the **Ship** phase: turning an agent directory into a deployable source package and configuring Google Cloud Agent Platform deployment. Implement commands (`validate`, `compile`, `run`, `eval`) do not require `deployment.yaml`. Ship commands (`package`, `deploy`, `register`) do.
 
-For the authoring layout, see [Your first agent](02-your-first-agent.md) and [Agent manifest reference](03-agent-manifest-reference.md). For validation before you ship, see [Validation and evals](08-validation-and-evals.md).
+For the authoring layout, see [Your first agent](02-your-first-agent.md) and [Agent manifest reference](03-agent-manifest-reference.md). For validation before you ship, see [Validation and evals](08-validation-and-evals.md). For the IR and package-layout rationale, see [RFC 0002: Spec-first core with frozen IR](../rfcs/0002-spec-first-core-frozen-ir.md).
+
+## Optional install extras
+
+Ship and local-run commands require optional dependencies beyond the base package. Install the extra that matches your workflow:
+
+| Extra           | Install                                           | Enables                                                     |
+| --------------- | ------------------------------------------------- | ----------------------------------------------------------- |
+| _(base)_        | `pip install antigravity-agentkit`                | `validate`, `compile`, `eval` (core; no SDK or GCP)         |
+| `[antigravity]` | `pip install 'antigravity-agentkit[antigravity]'` | `run`, `chat` (Antigravity SDK runtime assembly)            |
+| `[gcp]`         | `pip install 'antigravity-agentkit[gcp]'`         | `package`, `deploy`, `register` (deploy targets, packaging) |
+| `[all]`         | `pip install 'antigravity-agentkit[all]'`         | Full local run plus ship workflow                           |
+
+Core-only CI installs the base package and runs load/validate/compile/eval without `google-antigravity` or Google Cloud libraries.
 
 ## Agent Platform boundary
 
@@ -67,11 +80,11 @@ The agent directory is the package boundary. AgentKit copies its complete conten
 local MCP server implementations, discovered skills/subagents, and other runtime assets retain
 their relative paths. It then writes or replaces these generated files:
 
-| File               | Purpose                                                            |
-| ------------------ | ------------------------------------------------------------------ |
-| `agent.py`         | Generated runtime entrypoint exposing `root_agent`                 |
-| `requirements.txt` | Runtime dependency (`antigravity-agentkit[antigravity]`)           |
-| `metadata.json`    | Build summary (agent name, compiled vertex/MCP/tool/policy counts) |
+| File               | Purpose                                                             |
+| ------------------ | ------------------------------------------------------------------- |
+| `agent.py`         | Generated runtime entrypoint exposing `root_agent`                  |
+| `requirements.txt` | Runtime dependency (`antigravity-agentkit[antigravity]` or `[all]`) |
+| `metadata.json`    | Build summary (agent name, compiled vertex/MCP/tool/policy counts)  |
 
 Development and secret-bearing artifacts are excluded: `.build`, `.git`, virtual environments,
 tool caches, `__pycache__`, bytecode, `.DS_Store`, and `.env` files. Symbolic links are rejected
@@ -107,7 +120,7 @@ Packaging runs `compile()` internally, so schema and governance checks must pass
 
 ## `deployment.yaml`
 
-Production and platform settings live in **`deployment.yaml`** beside `agent.yaml`. They are merged into the Agent Platform deployment config by `build_deployment_config()`.
+Production and platform settings live in **`deployment.yaml`** beside `agent.yaml`. They are merged into the Agent Platform Runtime deployment config by `build_deployment_config()`.
 
 ```yaml
 apiVersion: antigravity-agentkit.dev/v1alpha1
@@ -115,7 +128,7 @@ kind: Deployment
 metadata:
   name: hello-world # must match agent metadata.name
 spec:
-  target: agent-platform
+  target: agent-platform-runtime # alias: agent-platform
   displayName: Hello World
   serviceAccount: hello-world@my-project.iam.gserviceaccount.com
   minInstances: 0
@@ -158,7 +171,7 @@ spec:
 | `labels`                         | Merged into top-level `labels`    | Combined with `managed-by: antigravity-agentkit` and `agent-name` |
 | `gateway`                        | `gateway`                         | Only included when `gateway.enabled` is true                      |
 
-Default deployment target is `agent-platform`. Labels always include `managed-by: antigravity-agentkit` and `agent-name: <metadata.name>`.
+Default deployment target is `agent-platform-runtime` (accepted alias: `agent-platform`). Labels always include `managed-by: antigravity-agentkit` and `agent-name: <metadata.name>`.
 
 For gateway behavior on Agent Runtime, see [Google Cloud Agent Gateway documentation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy).
 
@@ -184,47 +197,48 @@ Keep Vertex project/location aligned with your Agent Runtime `--project` and `--
 
 ## Deploy targets
 
-`deployment.yaml` `spec.target` selects which Tier B artifact `deploy` emits. Live apply is not implemented for any target yet (ADR 0003).
+`deployment.yaml` `spec.target` selects which Tier B artifact `deploy` emits. Live apply is not implemented for any target yet (ADR 0003). Canonical target names follow [RFC 0002](../rfcs/0002-spec-first-core-frozen-ir.md); legacy aliases remain accepted in CLI and manifests.
 
-| Target                     | Artifact                                         | Notes                                                     |
-| -------------------------- | ------------------------------------------------ | --------------------------------------------------------- |
-| `agent-platform` (default) | `.build/deployment-config.json` + source package | Agent Runtime contract; includes scaling, gateway, Vertex |
-| `gemini-api`               | `.build/gemini-agent-config.json`                | Managed Agents registration contract; no source package   |
-| `ai-studio`, `cloud-run`   | —                                                | Not implemented; `deploy` raises `DeployError`            |
+| Target (canonical)                 | Alias            | Artifact                                         | Notes                                                           |
+| ---------------------------------- | ---------------- | ------------------------------------------------ | --------------------------------------------------------------- |
+| `agent-platform-runtime` (default) | `agent-platform` | `.build/deployment-config.json` + source package | **Agent Platform Runtime** contract; scaling, gateway, Vertex   |
+| `managed-agents-api`               | `gemini-api`     | `.build/gemini-agent-config.json`                | **Managed Agents API** registration contract; no source package |
+| `ai-studio`, `cloud-run`           | —                | —                                                | Not implemented; `deploy` raises `DeployError`                  |
 
-### Gemini API (`target: gemini-api`)
+### Managed Agents API (`target: managed-agents-api`)
 
-For API-key–friendly Managed Agents registration, set `spec.target: gemini-api` in
-`deployment.yaml`. AgentKit emits a submit-ready `agents.create` request body in
+For API-key–friendly Managed Agents registration, set `spec.target: managed-agents-api` in
+`deployment.yaml` (alias: `gemini-api`). AgentKit emits a submit-ready `agents.create` request body in
 `gemini-agent-config.json`. The deployment name becomes `id`, the base agent is pinned to
 `antigravity-preview-05-2026`, system instructions are embedded, and local skills are mounted
 as inline `.agents/skills/<name>/SKILL.md` sources.
 
-Gemini API emission rejects MCP servers, static subagents, policies, non-default capabilities,
+Managed Agents API emission rejects MCP servers, static subagents, policies, non-default capabilities,
 and enabled Vertex configuration because those settings cannot be represented by
 `agents.create`. The shared deployment fields `displayName`, `labels`, scaling, service account,
-resource limits, concurrency, and gateway apply only to Agent Platform and are ignored for
-`gemini-api`. The local runtime model is also independent of the pinned Managed Agents base
+resource limits, concurrency, and gateway apply only to Agent Platform Runtime and are ignored for
+`managed-agents-api`. The local runtime model is also independent of the pinned Managed Agents base
 harness.
 
 ```bash
-uv run antigravity-agentkit deploy examples/gemini_api \
+uv run antigravity-agentkit deploy examples/managed_agents_api \
   --project demo \
   --location us-central1 \
   --dry-run
 ```
 
-`--project` and `--location` are ignored for `gemini-api` but remain required CLI flags. Apply the
-emitted JSON through the [Gemini API](https://ai.google.dev/gemini-api/docs/custom-agents) Agents
-API; live registration from AgentKit is not implemented yet.
+`--project` and `--location` are ignored for `managed-agents-api` but remain required CLI flags. Apply the
+emitted JSON through the [Managed Agents API](https://ai.google.dev/gemini-api/docs/custom-agents) (`generativelanguage.googleapis.com/v1beta/agents`); live registration from AgentKit is not implemented yet.
 
 ```bash
 curl -X POST "https://generativelanguage.googleapis.com/v1beta/agents" \
   -H "Content-Type: application/json" \
   -H "x-goog-api-key: ${GEMINI_API_KEY}" \
   -H "Api-Revision: 2026-05-20" \
-  --data-binary @examples/gemini_api/.build/gemini-agent-config.json
+  --data-binary @examples/managed_agents_api/.build/gemini-agent-config.json
 ```
+
+> **Note:** The example directory is `examples/managed_agents_api/` (renamed from `gemini_api/`). The deploy target alias `gemini-api` remains accepted.
 
 ## Deploying with `antigravity-agentkit deploy`
 
@@ -288,7 +302,7 @@ For local dry-run you do not need credentials. For future live deploy, use a **d
 
 ### Operator authentication (local `run`)
 
-`deployment.yaml` `spec.serviceAccount` is the **runtime** identity attached by Agent Platform when deployed. It is not used as caller credentials for local development.
+`deployment.yaml` `spec.serviceAccount` is the **runtime** identity attached by Agent Platform Runtime when deployed. It is not used as caller credentials for local development.
 
 For local `run` with Vertex, impersonate a service account at the **operator** layer:
 

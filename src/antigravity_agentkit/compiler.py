@@ -1,20 +1,33 @@
-"""Compile agent directory into Antigravity runtime configuration."""
+"""Compile agent directory into frozen CompiledAgentIR."""
 
 from __future__ import annotations
 
+import importlib.metadata
 from pathlib import Path
-from typing import Any
 
-from antigravity_agentkit.capabilities import compile_capabilities_ir
-from antigravity_agentkit.mcp import compile_mcp_servers, parse_mcp_dict
-from antigravity_agentkit.policies import compile_policy_dicts, parse_policies_dict
-from antigravity_agentkit.runtime_tools import build_read_skill_tool, read_skill_tool_metadata
-from antigravity_agentkit.schema.agent import AgentProjectData, CompiledAgentConfig
+from antigravity_agentkit.capabilities import compile_capabilities_to_ir
+from antigravity_agentkit.ir import (
+    IR_SCHEMA_VERSION,
+    CompiledAgentIR,
+    PolicyRuleIR,
+    ToolIR,
+    VertexIR,
+)
+from antigravity_agentkit.json_types import JsonValue
+from antigravity_agentkit.mcp import compile_mcp_servers_to_ir, parse_mcp_dict
+from antigravity_agentkit.policies import compile_policies_to_ir, parse_policies_dict
+from antigravity_agentkit.runtime_tools import read_skill_tool_metadata
+from antigravity_agentkit.schema.agent import AgentProjectData
 from antigravity_agentkit.schema.skills import LoadedSkill, SkillIndex
-from antigravity_agentkit.sdk import compile_to_sdk_config_from_compiled
-from antigravity_agentkit.skills import build_skill_index, compile_skills_paths
+from antigravity_agentkit.schema.subagents import LoadedSubagent
+from antigravity_agentkit.skills import (
+    build_skill_index,
+    compile_skills_paths_relative,
+    compile_skills_to_ir,
+)
 from antigravity_agentkit.subagents import (
     compile_subagent_ir,
+    compile_subagents_to_ir,
     delegation_tool_dict_from_ir,
     subagent_index_section,
 )
@@ -23,7 +36,7 @@ from antigravity_agentkit.subagents import (
 def render_system_instructions(
     data: AgentProjectData,
     skill_index: SkillIndex,
-    subagent_ir: list[dict[str, Any]],
+    subagent_ir: list[dict[str, object]],
     *,
     enable_subagents: bool,
 ) -> str:
@@ -41,7 +54,7 @@ def render_system_instructions(
     return "\n\n".join(section for section in sections if section)
 
 
-def _coerce_skills(skills: dict[str, Any]) -> dict[str, LoadedSkill]:
+def _coerce_skills(skills: dict[str, object]) -> dict[str, LoadedSkill]:
     """Coerce loaded skills dict to LoadedSkill instances."""
     result: dict[str, LoadedSkill] = {}
     for name, skill in skills.items():
@@ -50,105 +63,138 @@ def _coerce_skills(skills: dict[str, Any]) -> dict[str, LoadedSkill]:
     return result
 
 
-def compile_tool_metadata(
-    data: AgentProjectData,
-    subagent_ir: list[dict[str, Any]],
+def _compile_tools_ir(
+    subagent_ir: list[dict[str, object]],
     *,
     enable_subagents: bool,
-    coerced_skills: dict[str, LoadedSkill] | None = None,
-) -> list[dict[str, Any]]:
-    """Compile serializable tool metadata for manifests and registry."""
-    skills = coerced_skills if coerced_skills is not None else _coerce_skills(data.skills)
-    tools: list[dict[str, Any]] = []
+    coerced_skills: dict[str, LoadedSkill],
+) -> tuple[ToolIR, ...]:
+    """Compile serializable tool metadata for IR."""
+    tools: list[ToolIR] = []
     if enable_subagents:
-        tools.extend(delegation_tool_dict_from_ir(entry) for entry in subagent_ir)
-    tools.append(read_skill_tool_metadata(skills))
-    return tools
+        for entry in subagent_ir:
+            delegation = delegation_tool_dict_from_ir(entry)
+            tools.append(
+                ToolIR(
+                    name=str(delegation["name"]),
+                    kind="delegation",
+                    description=str(delegation.get("description")),
+                    metadata={
+                        "subagent": delegation.get("subagent"),
+                        "tools": delegation.get("tools"),
+                        "systemInstructions": delegation.get("system_instructions"),
+                    },
+                )
+            )
+    read_skill_meta = read_skill_tool_metadata(coerced_skills)
+    tools.append(
+        ToolIR(
+            name=str(read_skill_meta["name"]),
+            kind="skill-reader",
+            description=str(read_skill_meta.get("description")),
+            metadata={"skills": read_skill_meta.get("skills", [])},
+        )
+    )
+    return tuple(tools)
 
 
-def compile_runtime_tools(
-    data: AgentProjectData,
-    *,
-    coerced_skills: dict[str, LoadedSkill] | None = None,
-) -> list[Any]:
-    """Compile callable tools for Antigravity SDK runtime."""
-    skills = coerced_skills if coerced_skills is not None else _coerce_skills(data.skills)
-    runtime_tools: list[Any] = []
-    if skills:
-        runtime_tools.append(build_read_skill_tool(skills))
-    return runtime_tools
-
-
-def compile_vertex_settings(data: AgentProjectData) -> dict[str, Any]:
+def _compile_vertex_ir(data: AgentProjectData) -> VertexIR:
     """Compile vertex runtime settings."""
     vertex = data.manifest.spec.runtime.vertex
-    return {
-        "enabled": vertex.enabled,
-        "project": vertex.project,
-        "location": vertex.location,
-    }
+    return VertexIR(
+        enabled=vertex.enabled,
+        project=vertex.project,
+        location=vertex.location,
+    )
 
 
-def compile_from_data(data: AgentProjectData) -> CompiledAgentConfig:
-    """Compile loaded agent project data into runtime configuration."""
+def _agent_metadata(data: AgentProjectData) -> dict[str, JsonValue]:
+    """Compile manifest metadata for IR."""
+    metadata = data.manifest.metadata
+    result: dict[str, JsonValue] = {"name": metadata.name}
+    if metadata.display_name:
+        result["displayName"] = metadata.display_name
+    if metadata.description:
+        result["description"] = metadata.description
+    if metadata.owner:
+        result["owner"] = metadata.owner
+    if metadata.labels:
+        result["labels"] = dict(metadata.labels)
+    return result
+
+
+def _agentkit_version() -> str | None:
+    """Return the installed agentkit package version when available."""
+    try:
+        return importlib.metadata.version("antigravity-agentkit")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _coerce_subagents(subagents: dict[str, object]) -> dict[str, LoadedSubagent]:
+    """Return loaded subagents for IR compilation."""
+    result: dict[str, LoadedSubagent] = {}
+    for name, subagent in subagents.items():
+        if isinstance(subagent, LoadedSubagent):
+            result[name] = subagent
+    return result
+
+
+def compile_from_data(data: AgentProjectData) -> CompiledAgentIR:
+    """Compile loaded agent project data into frozen IR."""
     coerced_skills = _coerce_skills(data.skills)
     skill_index = build_skill_index(coerced_skills)
-    skills_paths = compile_skills_paths(coerced_skills)
-    subagents = compile_subagent_ir(data.subagents)
-    capabilities = compile_capabilities_ir(
+    subagent_dict_ir = compile_subagent_ir(data.subagents)
+    capabilities = compile_capabilities_to_ir(
         data.manifest.spec.runtime.capabilities,
-        has_subagents=bool(subagents),
+        has_subagents=bool(subagent_dict_ir),
     )
-    enable_subagents = bool(capabilities["enableSubagents"])
+    enable_subagents = capabilities.enable_subagents
     system_instructions = render_system_instructions(
         data,
         skill_index,
-        subagents,
+        subagent_dict_ir,
         enable_subagents=enable_subagents,
     )
 
-    mcp_servers: list[dict[str, Any]] = []
+    mcp_servers = ()
     if data.mcp_config:
-        mcp_servers = compile_mcp_servers(parse_mcp_dict(data.mcp_config))
+        mcp_servers = compile_mcp_servers_to_ir(parse_mcp_dict(data.mcp_config))
 
-    policies: list[dict[str, Any]] = []
+    policies: tuple[PolicyRuleIR, ...] = ()
     if data.policies:
-        policies = compile_policy_dicts(parse_policies_dict(data.policies))
+        policies = compile_policies_to_ir(parse_policies_dict(data.policies))
 
-    return CompiledAgentConfig(
+    project_root = data.root
+    skills_ir = compile_skills_to_ir(project_root, coerced_skills)
+    subagents_ir = compile_subagents_to_ir(project_root, _coerce_subagents(data.subagents))
+
+    return CompiledAgentIR(
+        schema_version=IR_SCHEMA_VERSION,
+        agentkit_version=_agentkit_version(),
+        metadata=_agent_metadata(data),
         system_instructions=system_instructions,
+        model=data.manifest.spec.runtime.model,
+        vertex=_compile_vertex_ir(data),
         mcp_servers=mcp_servers,
-        tools=compile_tool_metadata(
-            data,
-            subagents,
+        skills=skills_ir,
+        skills_paths=compile_skills_paths_relative(project_root, coerced_skills),
+        subagents=subagents_ir,
+        tools=_compile_tools_ir(
+            subagent_dict_ir,
             enable_subagents=enable_subagents,
             coerced_skills=coerced_skills,
         ),
-        runtime_tools=compile_runtime_tools(data, coerced_skills=coerced_skills),
         policies=policies,
         capabilities=capabilities,
-        subagents=subagents,
-        vertex=compile_vertex_settings(data),
-        model=data.manifest.spec.runtime.model,
-        skill_index=skill_index,
-        skills_paths=skills_paths,
     )
 
 
-def compile_agent_config(path: str | Path, *, production: bool = False) -> CompiledAgentConfig:
-    """Load and compile an agent directory into runtime configuration."""
+def compile_agent_ir(path: str | Path, *, production: bool = False) -> CompiledAgentIR:
+    """Load and compile an agent directory into frozen IR."""
     from antigravity_agentkit.project import AgentProject
 
     project = AgentProject.load(path)
     if production:
         project.validate(production=True)
     return compile_from_data(project.data)
-
-
-def compile_to_sdk_config(
-    compiled: CompiledAgentConfig,
-    *,
-    interactive: bool = False,
-) -> Any:
-    """Convert CompiledAgentConfig to Antigravity LocalAgentConfig when SDK is available."""
-    return compile_to_sdk_config_from_compiled(compiled, interactive=interactive)

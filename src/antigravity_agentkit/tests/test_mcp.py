@@ -15,6 +15,7 @@ from antigravity_agentkit.exceptions import (
 from antigravity_agentkit.mcp import (
     assert_mcp_security,
     compile_mcp_servers,
+    compile_mcp_servers_to_ir,
     parse_mcp_dict,
     try_compile_mcp_sdk_objects_from_compiled,
     validate_mcp_security,
@@ -192,6 +193,10 @@ def test_compile_http_mcp_server() -> None:
     assert servers[0]["transport"] == "http"
     assert servers[0]["url"] == "https://example.com/mcp"
     assert servers[0]["disabledTools"] == ["dangerous_tool"]
+
+    ir_server = compile_mcp_servers_to_ir(parse_mcp_dict(config))[0]
+    assert ir_server.headers == {"Authorization": "Bearer ${TOKEN}"}
+    assert ir_server.disabled_tools == ("dangerous_tool",)
 
 
 def test_rejects_mcp_server_without_transport() -> None:

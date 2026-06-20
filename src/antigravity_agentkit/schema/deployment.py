@@ -10,7 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 _API_VERSION = "antigravity-agentkit.dev/v1alpha1"
 _AGENT_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 
-DeployTarget = Literal["agent-platform", "gemini-api", "ai-studio", "cloud-run"]
+DeployTarget = Literal[
+    "agent-platform",
+    "agent-platform-runtime",
+    "gemini-api",
+    "managed-agents-api",
+    "ai-studio",
+    "cloud-run",
+]
 
 
 class DeploymentMetadata(BaseModel):

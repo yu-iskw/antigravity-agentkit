@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from antigravity_agentkit.compiler import (
-    compile_from_data,
-    compile_to_sdk_config,
-)
+from antigravity_agentkit.compiler import compile_from_data
+from antigravity_agentkit.ir import CompiledAgentIR
 from antigravity_agentkit.loader import load_agent_directory
-from antigravity_agentkit.schema.agent import AgentManifest, AgentProjectData, CompiledAgentConfig
-from antigravity_agentkit.sdk import get_agent_class
+from antigravity_agentkit.schema.agent import AgentManifest, AgentProjectData
+
+if TYPE_CHECKING:
+    from antigravity_agentkit.evals import EvalRunResult
 
 
 class AgentProject:
@@ -65,13 +65,23 @@ class AgentProject:
             profile=effective_profile,
         )
 
-    def compile(self, *, production: bool = False) -> CompiledAgentConfig:
-        """Compile the agent directory into runtime configuration."""
+    def compile(self, *, production: bool = False) -> CompiledAgentIR:
+        """Compile the agent directory into frozen IR."""
         self.validate(production=production)
         return compile_from_data(self.data)
 
     def create_agent(self, *, production: bool = False, interactive: bool = False) -> Any:
         """Create an Antigravity SDK Agent instance."""
-        compiled = self.compile(production=production)
-        sdk_config = compile_to_sdk_config(compiled, interactive=interactive)
-        return get_agent_class()(sdk_config)
+        from antigravity_agentkit.runtime import create_agent_from_project
+
+        return create_agent_from_project(
+            self,
+            production=production,
+            interactive=interactive,
+        )
+
+    def eval(self, *, suite_filter: str | None = None) -> EvalRunResult:
+        """Run evaluation suites in deterministic mock mode."""
+        from antigravity_agentkit.evals import run_evals
+
+        return run_evals(self, suite_filter=suite_filter)

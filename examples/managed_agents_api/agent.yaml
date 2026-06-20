@@ -1,9 +1,9 @@
 apiVersion: antigravity-agentkit.dev/v1alpha1
 kind: Agent
 metadata:
-  name: gemini-api-demo
-  displayName: Gemini API Demo
-  description: Minimal ship example for Gemini API Managed Agents contract emission.
+  name: managed-agents-api-demo
+  displayName: Managed Agents API Demo
+  description: Minimal ship example for Managed Agents API contract emission.
 spec:
   runtime:
     framework: antigravity

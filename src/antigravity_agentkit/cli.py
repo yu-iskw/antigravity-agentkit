@@ -11,7 +11,7 @@ import yaml
 from pydantic import ValidationError as PydanticValidationError
 from rich.console import Console
 
-from antigravity_agentkit.compiler import compile_agent_config
+from antigravity_agentkit.compiler import compile_agent_ir
 from antigravity_agentkit.deploy import (
     build_source_package,
     deploy,
@@ -19,6 +19,7 @@ from antigravity_agentkit.deploy import (
 )
 from antigravity_agentkit.evals import assert_evals_passed, run_evals
 from antigravity_agentkit.exceptions import AgentKitError, ValidationError
+from antigravity_agentkit.ir_serde import ir_to_dict
 from antigravity_agentkit.operator_auth import IMPERSONATE_ENV
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.registry import (
@@ -29,6 +30,7 @@ from antigravity_agentkit.registry import (
 from antigravity_agentkit.runtime import ReplIO, RuntimeAgent
 from antigravity_agentkit.schema.agent import AgentManifest
 from antigravity_agentkit.schema.deployment import DeploymentManifest
+from antigravity_agentkit.sdk.errors import SdkCompatibilityError
 from antigravity_agentkit.validator import validate_deployment, validate_project
 
 app = typer.Typer(
@@ -70,6 +72,8 @@ def _print_plain(text: str) -> None:
 
 def _print_error(exc: AgentKitError) -> None:
     console.print(f"[red]Error:[/red] {exc}")
+    if isinstance(exc, SdkCompatibilityError) and exc.install_hint:
+        console.print(f"Hint: {exc.install_hint}", markup=False)
 
 
 def _load_project(path: Path) -> AgentProject:
@@ -170,20 +174,26 @@ def compile_cmd(
 ) -> None:
     """Compile agent directory to runtime configuration."""
     try:
-        compiled = compile_agent_config(_resolve_path(path), production=production)
-        sdk_view = {
+        compiled = compile_agent_ir(_resolve_path(path), production=production)
+        ir_view = ir_to_dict(compiled)
+        summary = {
+            "schemaVersion": compiled.schema_version,
             "systemInstructionsLength": len(compiled.system_instructions),
             "mcpServerCount": len(compiled.mcp_servers),
             "toolCount": len(compiled.tools),
             "policyCount": len(compiled.policies),
             "model": compiled.model,
-            "vertex": compiled.vertex,
+            "vertex": {
+                "enabled": compiled.vertex.enabled,
+                "project": compiled.vertex.project,
+                "location": compiled.vertex.location,
+            },
         }
         if output:
-            output.write_text(json.dumps(sdk_view, indent=2), encoding="utf-8")
+            output.write_text(json.dumps(ir_view, indent=2), encoding="utf-8")
             console.print(f"[green]Wrote[/green] {output}")
         else:
-            console.print_json(json.dumps(sdk_view))
+            console.print_json(json.dumps(summary))
     except AgentKitError as exc:
         _print_error(exc)
         raise typer.Exit(code=1) from exc
@@ -366,7 +376,11 @@ def register_cmd(
     """[Ship] Emit Agent Registry metadata (requires deployment.yaml)."""
     try:
         agent_project, deployment = _load_ship_context(path)
-        metadata = build_agent_registry_metadata(agent_project, deployment)
+        metadata = build_agent_registry_metadata(
+            agent_project,
+            deployment,
+            location=location,
+        )
         metadata["registry"] = {
             "project": project_id,
             "location": location,

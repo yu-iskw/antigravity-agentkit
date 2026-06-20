@@ -1,0 +1,23 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Agent
+metadata:
+  name: support-triage
+  displayName: Support Triage
+  description: Example agent for Python embedding — classify support requests without deployment manifests.
+spec:
+  runtime:
+    framework: antigravity
+    model: gemini-3.1-flash-lite
+    vertex:
+      enabled: false
+    capabilities:
+      mode: restricted
+  instructions:
+    system: SYSTEM.md
+  skills:
+    local:
+      - skills/triage-helper
+  policies: {}
+  evals:
+    files:
+      - evals/smoke.yaml

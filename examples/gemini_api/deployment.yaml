@@ -1,7 +1,0 @@
-apiVersion: antigravity-agentkit.dev/v1alpha1
-kind: Deployment
-metadata:
-  name: gemini-api-demo
-  namespace: gemini-api-demo
-spec:
-  target: gemini-api

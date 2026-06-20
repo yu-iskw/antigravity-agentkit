@@ -26,7 +26,7 @@ def test_build_deployment_config_includes_scaling_gateway_and_identity(
 
     assert config["project"] == TEST_GCP_PROJECT
     assert config["location"] == TEST_GCP_LOCATION
-    assert config["target"] == "agent-platform"
+    assert config["target"] == "agent-platform-runtime"
     assert config["min_instances"] == 0
     assert config["max_instances"] == 1
     assert config["container_concurrency"] == deployment.spec.container_concurrency
@@ -181,7 +181,7 @@ def test_deploy_dry_run_writes_config(
 
     assert summary["status"] == "dry_run"
     assert Path(summary["config_path"]).is_file()
-    assert summary["config"]["target"] == "agent-platform"
+    assert summary["config"]["target"] == "agent-platform-runtime"
     assert Path(summary["package_dir"]).is_dir()
 
     written = json.loads(out.read_text(encoding="utf-8"))

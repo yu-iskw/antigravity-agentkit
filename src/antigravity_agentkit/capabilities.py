@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from antigravity_agentkit.ir import CapabilitiesIR
 from antigravity_agentkit.schema.agent import CapabilitiesConfig
 
 # Manifest tool names → google.antigravity.types.BuiltinTools attribute names.
@@ -25,28 +26,48 @@ TOOL_MAP: dict[str, str] = {
 LOCKED_MODE_DISABLED_TOOLS = ("run_command", "create_file", "edit_file")
 
 
+def compile_capabilities_to_ir(
+    capabilities: CapabilitiesConfig,
+    *,
+    has_subagents: bool,
+) -> CapabilitiesIR:
+    """Compile agent.yaml capabilities into frozen IR."""
+    enable_subagents = capabilities.enable_subagents
+    if enable_subagents is None:
+        enable_subagents = has_subagents
+
+    enabled_tools = tuple(capabilities.enabled_tools)
+    disabled_tools = tuple(capabilities.disabled_tools)
+    if not enabled_tools and not disabled_tools and capabilities.mode == "locked":
+        disabled_tools = LOCKED_MODE_DISABLED_TOOLS
+
+    return CapabilitiesIR(
+        mode=capabilities.mode,
+        enable_subagents=bool(enable_subagents),
+        enabled_tools=enabled_tools,
+        disabled_tools=disabled_tools,
+    )
+
+
+def capabilities_ir_to_sdk_dict(caps: CapabilitiesIR) -> dict[str, Any]:
+    """Serialize capabilities IR for SDK emitters."""
+    return {
+        "mode": caps.mode,
+        "enableSubagents": caps.enable_subagents,
+        "enabledTools": list(caps.enabled_tools),
+        "disabledTools": list(caps.disabled_tools),
+    }
+
+
 def compile_capabilities_ir(
     capabilities: CapabilitiesConfig,
     *,
     has_subagents: bool,
 ) -> dict[str, Any]:
-    """Compile agent.yaml capabilities into serializable IR for the SDK emitter."""
-    enable_subagents = capabilities.enable_subagents
-    if enable_subagents is None:
-        enable_subagents = has_subagents
-
-    enabled_tools = list(capabilities.enabled_tools)
-    disabled_tools = list(capabilities.disabled_tools)
-
-    if not enabled_tools and not disabled_tools and capabilities.mode == "locked":
-        disabled_tools = list(LOCKED_MODE_DISABLED_TOOLS)
-
-    return {
-        "mode": capabilities.mode,
-        "enableSubagents": enable_subagents,
-        "enabledTools": enabled_tools,
-        "disabledTools": disabled_tools,
-    }
+    """Compile agent.yaml capabilities into serializable dict IR for SDK emitters."""
+    return capabilities_ir_to_sdk_dict(
+        compile_capabilities_to_ir(capabilities, has_subagents=has_subagents)
+    )
 
 
 def _resolve_builtin_tool(tool_name: str, builtin_tools: Any) -> Any:

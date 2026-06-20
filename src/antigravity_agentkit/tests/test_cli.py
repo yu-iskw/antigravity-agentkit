@@ -141,8 +141,8 @@ def test_cli_compile_mcp_agent(mcp_agent_dir: Path, tmp_path: Path) -> None:
     assert result.exit_code == 0, result.stdout
     assert output_file.is_file()
     content = output_file.read_text(encoding="utf-8")
-    assert '"mcpServerCount": 1' in content
-    assert '"policyCount"' in content
+    assert '"schemaVersion"' in content
+    assert '"mcpServers"' in content
 
 
 def test_cli_eval_mcp_agent(mcp_agent_dir: Path) -> None:

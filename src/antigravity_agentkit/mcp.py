@@ -15,6 +15,7 @@ from antigravity_agentkit.exceptions import (
     SecurityValidationError,
     ValidationError,
 )
+from antigravity_agentkit.ir import McpServerIR
 from antigravity_agentkit.schema.mcp import McpConfig, McpServerConfig
 
 SECRET_KEY_PATTERN = re.compile(
@@ -179,6 +180,39 @@ def compile_mcp_server_dict(name: str, server: McpServerConfig) -> dict[str, Any
         result["envFromSecretManager"] = dict(server.env_from_secret_manager)
     _append_tool_filters(result, server)
     return result
+
+
+def compile_mcp_servers_to_ir(mcp_config: McpConfig | dict[str, Any]) -> tuple[McpServerIR, ...]:
+    """Compile mcp.json to frozen MCP server IR."""
+    config = mcp_config if isinstance(mcp_config, McpConfig) else parse_mcp_dict(mcp_config)
+    servers: list[McpServerIR] = []
+    for name, server in config.mcp_servers.items():
+        server_dict = compile_mcp_server_dict(name, server)
+        transport = server_dict.get("transport", "stdio")
+        ir_transport: str
+        if transport == "http":
+            ir_transport = "streamable-http"
+        elif transport == "sse":
+            ir_transport = "sse"
+        else:
+            ir_transport = "stdio"
+        servers.append(
+            McpServerIR(
+                name=str(server_dict["name"]),
+                transport=ir_transport,  # type: ignore[arg-type]
+                command=server_dict.get("command"),
+                args=tuple(server_dict.get("args") or ()),
+                url=server_dict.get("url"),
+                env={str(key): str(value) for key, value in (server_dict.get("env") or {}).items()},
+                headers={
+                    str(key): str(value)
+                    for key, value in (server_dict.get("headers") or {}).items()
+                },
+                enabled_tools=tuple(server_dict.get("enabledTools") or ()),
+                disabled_tools=tuple(server_dict.get("disabledTools") or ()),
+            )
+        )
+    return tuple(servers)
 
 
 def compile_mcp_servers(mcp_config: McpConfig | dict[str, Any]) -> list[dict[str, Any]]:

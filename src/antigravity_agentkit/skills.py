@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 import yaml
 
 from antigravity_agentkit.exceptions import LoadError, ValidationError
+from antigravity_agentkit.ir import SkillIR
 from antigravity_agentkit.paths import resolve_project_path
 from antigravity_agentkit.schema.skills import (
     LoadedSkill,
@@ -111,6 +113,39 @@ def discover_skills(root: Path, skills_dir: str = "skills") -> dict[str, LoadedS
         skill = load_skill_md(resolved_path)
         skills[skill.name] = skill
     return skills
+
+
+def skill_content_hash(content: str) -> str:
+    """Return a stable content hash for skill packages."""
+    digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
+
+
+def compile_skills_to_ir(root: Path, skills: dict[str, LoadedSkill]) -> tuple[SkillIR, ...]:
+    """Compile loaded skills into frozen skill IR."""
+    project_root = root.resolve()
+    entries: list[SkillIR] = []
+    for skill in sorted(skills.values(), key=lambda item: item.name):
+        relative_path = skill.path.relative_to(project_root).as_posix()
+        entries.append(
+            SkillIR(
+                name=skill.name,
+                path=relative_path,
+                content_hash=skill_content_hash(skill.content),
+                description=skill.description,
+            )
+        )
+    return tuple(entries)
+
+
+def compile_skills_paths_relative(root: Path, skills: dict[str, LoadedSkill]) -> tuple[str, ...]:
+    """Return skill package directories relative to the project root."""
+    project_root = root.resolve()
+    return tuple(
+        sorted(
+            {skill.path.parent.relative_to(project_root).as_posix() for skill in skills.values()}
+        )
+    )
 
 
 def build_skill_index(skills: dict[str, LoadedSkill]) -> SkillIndex:

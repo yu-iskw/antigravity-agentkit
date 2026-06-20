@@ -11,11 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from antigravity_agentkit.ir import CompiledAgentIR
 from antigravity_agentkit.operator_auth import (
     operator_credentials_context,
     resolve_impersonate_target,
 )
-from antigravity_agentkit.sdk import compile_sdk_policies
 
 if TYPE_CHECKING:
     from antigravity_agentkit.project import AgentProject
@@ -189,4 +189,75 @@ class RuntimeAgent:
                     await _turn(agent, prompt)
 
 
-__all__ = ["ReplIO", "RuntimeAgent", "chat_response_text", "compile_sdk_policies"]
+def create_agent_from_ir(
+    ir: CompiledAgentIR,
+    *,
+    project_root: str | Path,
+    interactive: bool = False,
+    loaded_skills: dict[str, Any] | None = None,
+) -> Any:
+    """Create an Antigravity SDK Agent from compiled IR (requires [antigravity])."""
+    from antigravity_agentkit.sdk.runtime import create_agent_from_ir as _create_agent_from_ir
+
+    return _create_agent_from_ir(
+        ir,
+        project_root=project_root,
+        interactive=interactive,
+        loaded_skills=loaded_skills,
+    )
+
+
+def create_agent_from_project(
+    project: AgentProject,
+    *,
+    production: bool = False,
+    interactive: bool = False,
+) -> Any:
+    """Compile a project and return an Antigravity SDK Agent (requires [antigravity])."""
+    ir = project.compile(production=production)
+    return create_agent_from_ir(
+        ir,
+        project_root=project.root,
+        interactive=interactive,
+        loaded_skills=project.data.skills,
+    )
+
+
+def create_sdk_config_from_ir(
+    ir: CompiledAgentIR,
+    *,
+    project_root: str | Path,
+    interactive: bool = False,
+    loaded_skills: dict[str, Any] | None = None,
+) -> Any:
+    """Create a LocalAgentConfig from compiled IR (requires [antigravity])."""
+    from antigravity_agentkit.sdk.runtime import create_sdk_config_from_ir as _create_sdk_config
+
+    return _create_sdk_config(
+        ir,
+        project_root=project_root,
+        interactive=interactive,
+        loaded_skills=loaded_skills,
+    )
+
+
+def create_agent_from_ir_file(
+    path: str | Path,
+    *,
+    project_root: str | Path = ".",
+) -> Any:
+    """Create an Antigravity SDK Agent from serialized IR JSON (requires [antigravity])."""
+    from antigravity_agentkit.sdk.runtime import create_agent_from_ir_file as _create_from_file
+
+    return _create_from_file(path, project_root=project_root)
+
+
+__all__ = [
+    "ReplIO",
+    "RuntimeAgent",
+    "chat_response_text",
+    "create_agent_from_ir",
+    "create_agent_from_ir_file",
+    "create_agent_from_project",
+    "create_sdk_config_from_ir",
+]
