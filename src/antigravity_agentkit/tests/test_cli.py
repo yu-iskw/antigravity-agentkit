@@ -162,7 +162,8 @@ def test_cli_local_session_help_includes_interactive_flag(command: str) -> None:
     assert result.exit_code == 0, result.stdout
     assert "-interactive" in result.stdout
     if command == "chat":
-        assert "--prompt" in result.stdout
+        # Rich may render "--prompt" as styled "-prompt" on Linux CI.
+        assert "-prompt" in result.stdout
 
 
 def test_cli_chat_invokes_run_repl(
