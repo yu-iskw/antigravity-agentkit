@@ -132,12 +132,11 @@ The minimal [hello_world](../../examples/hello_world/) example has no policies f
 
 #### 2. deployment.serviceAccount
 
-At `--level cloud` or `full`, production profiles require a service account in the manifest:
+At `--level cloud` or `full`, production profiles require a service account in **`deployment.yaml`** (when that file is present):
 
 ```yaml
 spec:
-  deployment:
-    serviceAccount: my-agent-sa@my-project.iam.gserviceaccount.com
+  serviceAccount: my-agent-sa@my-project.iam.gserviceaccount.com
 ```
 
 Missing service account produces **AGK-CLOUD-002**:
@@ -174,7 +173,7 @@ uv run antigravity-agentkit validate examples/mcp \
   --profile prod-readonly
 ```
 
-The mcp example passes under `dev-open` at all levels but fails `prod-readonly` at `cloud`/`full` until `deployment.serviceAccount` is added to `agent.yaml`—by design, to demonstrate the requirement.
+The [hello_world](../../examples/hello_world/) example is implement-only. For `prod-readonly` cloud checks with `deployment.yaml` present, add `spec.serviceAccount` — see the ship test fixture at `src/antigravity_agentkit/tests/fixtures/ship_agent/deployment.yaml`.
 
 ## Diagnostic codes
 

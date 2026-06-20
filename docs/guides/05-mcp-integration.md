@@ -6,7 +6,7 @@ This guide covers how to declare Model Context Protocol (MCP) servers in an agen
 
 ## Overview
 
-MCP servers extend your agent with external tools—database connectors, file systems, APIs, and more. AgentKit reads a **Claude/Cursor-compatible** `mcp.json` file, validates it against security rules, and compiles each entry into an `McpStdioServer`-compatible dictionary for the Google Antigravity SDK.
+MCP servers extend your agent with external tools—database connectors, file systems, APIs, and more. AgentKit reads a **Claude/Cursor-compatible** `mcp.json` file, validates it against security rules, and compiles each entry for the Google Antigravity SDK as stdio (`McpStdioServer`) or streamable HTTP (`McpStreamableHttpServer`) objects.
 
 Reference the file from `agent.yaml`:
 
@@ -36,19 +36,34 @@ The [mcp example](../../examples/mcp/) example wires MCP, admission policy, and 
       },
       "envFromSecretManager": {
         "SECRET_KEY": "projects/my-project/secrets/my-secret/versions/latest"
-      }
+      },
+      "enabledTools": ["tool_a"],
+      "disabledTools": ["tool_b"]
+    },
+    "<remote-server>": {
+      "url": "https://example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${TOKEN}"
+      },
+      "disabledTools": ["dangerous_tool"]
     }
   }
 }
 ```
 
-| Field                  | Required | Description                                                    |
-| ---------------------- | -------- | -------------------------------------------------------------- |
-| `mcpServers`           | Yes      | Map of server name → server config                             |
-| `command`              | Yes      | Executable to spawn (e.g. `uvx`, `npx`, `node`)                |
-| `args`                 | No       | Command-line arguments                                         |
-| `env`                  | No       | Environment variables passed to the server process             |
-| `envFromSecretManager` | No       | Secret Manager references (compiled to `envFromSecretManager`) |
+| Field                  | Required  | Description                                                    |
+| ---------------------- | --------- | -------------------------------------------------------------- |
+| `mcpServers`           | Yes       | Map of server name → server config                             |
+| `command`              | For stdio | Executable to spawn (e.g. `uvx`, `npx`, `node`)                |
+| `url`                  | For HTTP  | Streamable HTTP MCP endpoint                                   |
+| `args`                 | No        | Command-line arguments (stdio only)                            |
+| `env`                  | No        | Environment variables passed to the server process (stdio)     |
+| `headers`              | No        | HTTP headers for remote MCP servers                            |
+| `envFromSecretManager` | No        | Secret Manager references (compiled to `envFromSecretManager`) |
+| `enabledTools`         | No        | Allowlist of MCP tool names exposed to the agent               |
+| `disabledTools`        | No        | Denylist of MCP tool names hidden from the agent               |
+
+Each server entry must declare **exactly one** transport: `command` (stdio) or `url` (HTTP), not both.
 
 Server names become part of tool identifiers at runtime. A tool exposed by the `bigquery-metadata` server is referenced as `mcp.bigquery-metadata.<tool_name>` in policies and subagent tool lists.
 
@@ -72,13 +87,14 @@ From [`examples/mcp/mcp.json`](../../examples/mcp/mcp.json):
 
 This example uses `uvx` with a **version-pinned** package (`@1.0.0`), which satisfies the npx/uvx pinning rules described below.
 
-## Compiling to McpStdioServer
+## Compiling MCP servers
 
-When you run `antigravity-agentkit compile`, each MCP server is compiled to a runtime dictionary:
+When you run `antigravity-agentkit compile`, each MCP server is compiled to a runtime dictionary with a `transport` field:
 
 ```json
 {
   "name": "bigquery-metadata",
+  "transport": "stdio",
   "command": "uvx",
   "args": ["company-bigquery-mcp@1.0.0"],
   "env": {
@@ -87,7 +103,9 @@ When you run `antigravity-agentkit compile`, each MCP server is compiled to a ru
 }
 ```
 
-If the `google-antigravity` SDK is installed (`uv sync --extra antigravity`), compilation can produce native `McpStdioServer` objects directly. Without the SDK, AgentKit still emits the same dictionary shape.
+HTTP servers compile with `"transport": "http"` and a `url` field instead of `command`/`args`.
+
+If the `google-antigravity` SDK is installed (`uv sync --extra antigravity`), compilation produces native `McpStdioServer` or `McpStreamableHttpServer` objects. Without the SDK, AgentKit still emits the same dictionary shape.
 
 Tool names in policies and subagents use the `mcp.<server-name>.<tool>` convention—for example, `mcp.bigquery-metadata.list_datasets`.
 

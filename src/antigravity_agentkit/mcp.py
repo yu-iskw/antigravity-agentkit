@@ -59,14 +59,14 @@ def _has_pinned_npx_package(args: list[str]) -> bool:
     return False
 
 
-def _validate_server_security(
+def _validate_stdio_server_security(
     name: str,
     server: McpServerConfig,
     *,
     production: bool,
 ) -> list[str]:
     errors: list[str] = []
-    command = server.command
+    command = server.command or ""
     args = server.args
 
     if command in {"sh", "bash", "zsh"} and "-c" in args:
@@ -87,6 +87,25 @@ def _validate_server_security(
         errors.append(f"MCP server '{name}': command '{command}' is not allowed in production")
 
     return errors
+
+
+def _validate_http_server_security(name: str, server: McpServerConfig) -> list[str]:
+    errors: list[str] = []
+    for key, value in server.headers.items():
+        if _looks_like_secret(key, value):
+            errors.append(f"MCP server '{name}': headers.{key} appears to contain an inline secret")
+    return errors
+
+
+def _validate_server_security(
+    name: str,
+    server: McpServerConfig,
+    *,
+    production: bool,
+) -> list[str]:
+    if server.url:
+        return _validate_http_server_security(name, server)
+    return _validate_stdio_server_security(name, server, production=production)
 
 
 def validate_mcp_security(
@@ -118,10 +137,29 @@ def assert_mcp_security(
         raise SecurityValidationError("; ".join(errors))
 
 
+def _append_tool_filters(result: dict[str, Any], server: McpServerConfig) -> None:
+    if server.enabled_tools:
+        result["enabledTools"] = list(server.enabled_tools)
+    if server.disabled_tools:
+        result["disabledTools"] = list(server.disabled_tools)
+
+
 def compile_mcp_server_dict(name: str, server: McpServerConfig) -> dict[str, Any]:
-    """Compile a single MCP server to an McpStdioServer-compatible dictionary."""
-    result: dict[str, Any] = {
+    """Compile a single MCP server to a serializable runtime dictionary."""
+    if server.url:
+        result: dict[str, Any] = {
+            "name": name,
+            "transport": "http",
+            "url": server.url,
+        }
+        if server.headers:
+            result["headers"] = dict(server.headers)
+        _append_tool_filters(result, server)
+        return result
+
+    result = {
         "name": name,
+        "transport": "stdio",
         "command": server.command,
         "args": list(server.args),
     }
@@ -129,34 +167,55 @@ def compile_mcp_server_dict(name: str, server: McpServerConfig) -> dict[str, Any
         result["env"] = dict(server.env)
     if server.env_from_secret_manager:
         result["envFromSecretManager"] = dict(server.env_from_secret_manager)
+    _append_tool_filters(result, server)
     return result
 
 
 def compile_mcp_servers(mcp_config: McpConfig | dict[str, Any]) -> list[dict[str, Any]]:
-    """Compile mcp.json to McpStdioServer-compatible dictionaries."""
+    """Compile mcp.json to runtime-compatible server dictionaries."""
     config = mcp_config if isinstance(mcp_config, McpConfig) else McpConfig.from_dict(mcp_config)
     return [compile_mcp_server_dict(name, server) for name, server in config.mcp_servers.items()]
 
 
-def try_compile_mcp_sdk_objects(mcp_config: McpConfig | dict[str, Any]) -> list[Any]:
-    """Compile MCP servers to SDK objects when google-antigravity is available."""
-    try:
-        from google.antigravity.types import McpStdioServer
-    except ImportError:
-        return compile_mcp_servers(mcp_config)
+def _sdk_kwargs_from_server_dict(server: dict[str, Any]) -> dict[str, Any]:
+    """Build SDK MCP server constructor kwargs from a compiled server dict."""
+    kwargs: dict[str, Any] = {"name": server["name"]}
+    if server.get("enabledTools"):
+        kwargs["enabled_tools"] = list(server["enabledTools"])
+    if server.get("disabledTools"):
+        kwargs["disabled_tools"] = list(server["disabledTools"])
+    return kwargs
 
-    config = mcp_config if isinstance(mcp_config, McpConfig) else McpConfig.from_dict(mcp_config)
-    servers: list[Any] = []
-    for name, server in config.mcp_servers.items():
-        kwargs: dict[str, Any] = {
-            "name": name,
-            "command": server.command,
-            "args": list(server.args),
-        }
-        if server.env:
-            kwargs["env"] = dict(server.env)
-        servers.append(McpStdioServer(**kwargs))
-    return servers
+
+def try_compile_mcp_sdk_objects_from_compiled(servers: list[dict[str, Any]]) -> list[Any]:
+    """Compile MCP server IR dicts to SDK objects when google-antigravity is available."""
+    try:
+        from google.antigravity import types
+
+        mcp_stdio_server = types.McpStdioServer
+        mcp_streamable_http_server = getattr(types, "McpStreamableHttpServer", None)
+    except ImportError:
+        return servers
+
+    sdk_servers: list[Any] = []
+    for server in servers:
+        kwargs = _sdk_kwargs_from_server_dict(server)
+        if server.get("transport") == "http":
+            if mcp_streamable_http_server is None:
+                sdk_servers.append(server)
+                continue
+            kwargs["url"] = server["url"]
+            if server.get("headers"):
+                kwargs["headers"] = dict(server["headers"])
+            sdk_servers.append(mcp_streamable_http_server(**kwargs))
+            continue
+
+        kwargs["command"] = server["command"]
+        kwargs["args"] = list(server.get("args", []))
+        if server.get("env"):
+            kwargs["env"] = dict(server["env"])
+        sdk_servers.append(mcp_stdio_server(**kwargs))
+    return sdk_servers
 
 
 def validate_mcp_json(path: Path, *, production: bool = False) -> McpConfig:

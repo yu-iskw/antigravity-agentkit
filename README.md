@@ -46,11 +46,12 @@ antigravity-agentkit run examples/hello_world --prompt "Hello"
 
 ## Agent directory layout
 
-An **agent directory** is the unit of authoring:
+An **agent directory** is the unit of authoring. **Ship** commands require `deployment.yaml` in that directory (not used by the bundled `examples/` demos).
 
 ```text
-agent.yaml          # typed agent manifest
+agent.yaml          # typed agent manifest (behavior)
 SYSTEM.md           # core system instructions
+deployment.yaml     # ship-only: scaling, service account, target (your agents, not examples/)
 mcp.json            # MCP server declarations (optional)
 skills/*/SKILL.md   # skill packages (optional)
 subagents/*.md      # local subagent definitions (optional)
@@ -70,17 +71,21 @@ JSON Schema definitions: [`docs/schemas/`](docs/schemas/)
 
 ## CLI commands
 
-| Command                                                                   | Description                                         |
-| ------------------------------------------------------------------------- | --------------------------------------------------- |
-| `antigravity-agentkit init <name>`                                        | Scaffold a minimal agent directory                  |
-| `antigravity-agentkit validate <path>`                                    | Validate manifest, security rules, and cloud config |
-| `antigravity-agentkit compile <path>`                                     | Compile to runtime configuration (JSON)             |
-| `antigravity-agentkit run <path> --prompt <text>`                         | Run one local chat turn                             |
-| `antigravity-agentkit eval <path>`                                        | Run evaluation suites (deterministic mock mode)     |
-| `antigravity-agentkit package <path>`                                     | Build a deployable source package                   |
-| `antigravity-agentkit deploy <path> --project <id> --location <region>`   | Deploy or emit deployment config                    |
-| `antigravity-agentkit publish-skill <skill-dir>`                          | Validate and package a skill for Skill Registry     |
-| `antigravity-agentkit register <path> --project <id> --location <region>` | Emit Agent Registry metadata                        |
+**Implement:** `init`, `validate`, `compile`, `run`, `eval` — work without `deployment.yaml`.
+
+**Ship:** `package`, `deploy`, `register` — require `deployment.yaml` in the agent directory.
+
+| Command                                                                   | Phase     | Description                                     |
+| ------------------------------------------------------------------------- | --------- | ----------------------------------------------- |
+| `antigravity-agentkit init <name>`                                        | Implement | Scaffold a minimal agent directory              |
+| `antigravity-agentkit validate <path>`                                    | Implement | Validate manifest, security rules, and policies |
+| `antigravity-agentkit compile <path>`                                     | Implement | Compile to runtime configuration (JSON)         |
+| `antigravity-agentkit run <path> --prompt <text>`                         | Implement | Run one local chat turn                         |
+| `antigravity-agentkit eval <path>`                                        | Implement | Run evaluation suites (deterministic mock mode) |
+| `antigravity-agentkit package <path>`                                     | Ship      | Build a deployable source package               |
+| `antigravity-agentkit deploy <path> --project <id> --location <region>`   | Ship      | Deploy or emit deployment config                |
+| `antigravity-agentkit publish-skill <skill-dir>`                          | Ship      | Validate and package a skill for Skill Registry |
+| `antigravity-agentkit register <path> --project <id> --location <region>` | Ship      | Emit Agent Registry metadata                    |
 
 Useful flags:
 
@@ -93,7 +98,7 @@ Useful flags:
 
 | Path                                             | Description                                          |
 | ------------------------------------------------ | ---------------------------------------------------- |
-| [`examples/hello_world/`](examples/hello_world/) | Minimal agent with `gemini-3-flash-preview`          |
+| [`examples/hello_world/`](examples/hello_world/) | Minimal agent with `gemini-3.1-flash-lite`           |
 | [`examples/skills/`](examples/skills/)           | Local `SKILL.md` packages and `read_skill`           |
 | [`examples/subagents/`](examples/subagents/)     | Markdown subagent delegation                         |
 | [`examples/mcp/`](examples/mcp/)                 | MCP clock server, policies, skills, subagents, evals |

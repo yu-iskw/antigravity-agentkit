@@ -23,7 +23,7 @@ Without `--output`, metadata is printed to stdout as JSON.
 | ----------------------------------------------------------------------------------- | ----------------------------------- |
 | `name`, `displayName`, `description`, `owner`, `labels`                             | `agent.yaml` metadata               |
 | `runtime.framework`, `runtime.vertexEnabled`, `runtime.project`, `runtime.location` | `spec.runtime`                      |
-| `deployment.target`, `deployment.serviceAccount`, `deployment.labels`               | `spec.deployment`                   |
+| `deployment.target`, `deployment.serviceAccount`, `deployment.labels`               | `deployment.yaml`                   |
 | `mcpServers`                                                                        | Sorted server names from `mcp.json` |
 | `tools`                                                                             | Compiled tool names                 |
 | `skills`                                                                            | Local skill names                   |
@@ -122,9 +122,11 @@ Skill authoring conventions are covered in [Skills and subagents](06-skills-and-
 ```python
 from antigravity_agentkit import publish_skill, build_agent_registry_metadata
 from antigravity_agentkit import AgentProject
+from antigravity_agentkit.deploy import load_deployment
 
-project = AgentProject.load("examples/mcp")
-metadata = build_agent_registry_metadata(project)
+project = AgentProject.load("examples/hello_world")
+deployment = load_deployment(project.root)
+metadata = build_agent_registry_metadata(project, deployment)
 
 result = publish_skill(
     "examples/mcp/skills/bigquery-analysis",

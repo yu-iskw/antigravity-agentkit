@@ -11,10 +11,16 @@ import yaml
 
 from antigravity_agentkit.diagnostics import DiagnosticCollector
 from antigravity_agentkit.exceptions import LoadError, ValidationError
-from antigravity_agentkit.loader import load_agent_yaml, load_system_md
+from antigravity_agentkit.loader import (
+    DEPLOYMENT_FILENAME,
+    load_agent_yaml,
+    load_deployment,
+    load_system_md,
+)
 from antigravity_agentkit.mcp import assert_mcp_security, parse_mcp_dict, validate_mcp_security
 from antigravity_agentkit.policies import parse_policies_dict, validate_policies_yaml
 from antigravity_agentkit.schema.agent import AgentProjectData
+from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.skills import validate_skills
 from antigravity_agentkit.subagents import load_subagents_from_specs
 
@@ -36,9 +42,9 @@ _LEVEL_ORDER: dict[str, int] = {
 }
 
 _DANGEROUS_TOOLS = ("run_command", "write_file", "delete_file")
-_PROFILES_REQUIRING_SERVICE_ACCOUNT = frozenset(
-    {"prod-readonly", "prod-human-approval", "prod-locked"}
-)
+_PRODUCTION_PROFILES = frozenset({"prod-readonly", "prod-human-approval", "prod-locked"})
+_PROFILES_REQUIRING_POLICIES = _PRODUCTION_PROFILES
+_PROFILES_REQUIRING_SERVICE_ACCOUNT = _PRODUCTION_PROFILES
 
 
 def _level_includes(requested: ValidationLevel, minimum: ValidationLevel) -> bool:
@@ -208,18 +214,17 @@ def _validate_security(
                     "MCP servers not in admission policy: " + ", ".join(sorted(disallowed)),
                 )
 
-    if profile in _PROFILES_REQUIRING_SERVICE_ACCOUNT:
+    if profile in _PROFILES_REQUIRING_POLICIES:
         _check_prod_policies(root, data, collector)
 
 
-def _validate_cloud(
+def _validate_cloud_agent(
     data: AgentProjectData,
     collector: DiagnosticCollector,
-    profile: ValidationProfile,
 ) -> None:
+    """Validate agent-side cloud settings (runtime vertex)."""
     manifest = data.manifest
     vertex = manifest.spec.runtime.vertex
-    deployment = manifest.spec.deployment
 
     if vertex.enabled and not vertex.project:
         collector.add_error(
@@ -229,26 +234,75 @@ def _validate_cloud(
             path="$.spec.runtime.vertex.project",
         )
 
-    if profile in _PROFILES_REQUIRING_SERVICE_ACCOUNT:
-        service_account = deployment.service_account if deployment else None
-        if not service_account:
-            collector.add_error(
-                "AGK-CLOUD-002",
-                f"Profile {profile!r} requires deployment.serviceAccount",
-                file="agent.yaml",
-                path="$.spec.deployment.serviceAccount",
-            )
+
+def _validate_cloud_deployment(
+    data: AgentProjectData,
+    deployment: DeploymentManifest,
+    collector: DiagnosticCollector,
+    profile: ValidationProfile,
+) -> None:
+    """Validate deployment.yaml cloud settings when present."""
+    if deployment.metadata.name != data.manifest.metadata.name:
+        collector.add_error(
+            "AGK-DEPLOY-001",
+            "deployment.metadata.name must match agent metadata.name",
+            file="deployment.yaml",
+            path="$.metadata.name",
+        )
+
+    deploy_spec = deployment.spec
+    if profile in _PROFILES_REQUIRING_SERVICE_ACCOUNT and not deploy_spec.service_account:
+        collector.add_error(
+            "AGK-CLOUD-002",
+            f"Profile {profile!r} requires deployment.serviceAccount",
+            file="deployment.yaml",
+            path="$.spec.serviceAccount",
+        )
 
     if (
-        deployment
-        and deployment.gateway
-        and deployment.gateway.enabled
-        and not deployment.gateway.required_endpoints
+        deploy_spec.gateway
+        and deploy_spec.gateway.enabled
+        and not deploy_spec.gateway.required_endpoints
     ):
         collector.add_warn(
             "AGK-CLOUD-003",
             "Agent Gateway enabled without requiredEndpoints",
-            file="agent.yaml",
+            file="deployment.yaml",
+        )
+
+
+def validate_deployment(
+    data: AgentProjectData,
+    deployment: DeploymentManifest,
+    *,
+    profile: ValidationProfile = "dev-open",
+) -> DiagnosticCollector:
+    """Validate deployment manifest against agent project data."""
+    collector = DiagnosticCollector()
+    _validate_cloud_deployment(data, deployment, collector, profile)
+    return collector
+
+
+def _validate_cloud(
+    root: Path,
+    data: AgentProjectData,
+    collector: DiagnosticCollector,
+    profile: ValidationProfile,
+) -> None:
+    _validate_cloud_agent(data, collector)
+    deployment_path = root / DEPLOYMENT_FILENAME
+    if deployment_path.is_file():
+        try:
+            loaded = load_deployment(root)
+        except LoadError as exc:
+            collector.add_error("AGK-DEPLOY-002", str(exc), file=DEPLOYMENT_FILENAME)
+            return
+        _validate_cloud_deployment(data, loaded, collector, profile)
+    elif profile in _PROFILES_REQUIRING_SERVICE_ACCOUNT:
+        collector.add_error(
+            "AGK-DEPLOY-003",
+            f"Profile {profile!r} requires {DEPLOYMENT_FILENAME}",
+            file=DEPLOYMENT_FILENAME,
         )
 
 
@@ -274,7 +328,7 @@ def validate_project_data(
         _validate_security(root, data, collector, profile)
 
     if _level_includes(level, "cloud") or level == "full":
-        _validate_cloud(data, collector, profile)
+        _validate_cloud(root, data, collector, profile)
 
     return collector
 

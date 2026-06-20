@@ -12,25 +12,39 @@ from antigravity_agentkit.compiler import compile_tool_metadata
 from antigravity_agentkit.exceptions import RegistryError
 from antigravity_agentkit.mcp import parse_mcp_dict
 from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.skills import SKILL_FILENAME, load_skill_directory, validate_skill_name
+from antigravity_agentkit.subagents import compile_subagent_ir
 
 _MAX_SKILL_FILE_BYTES = 10 * 1024 * 1024
 
 
-def build_agent_registry_metadata(project: AgentProject) -> dict[str, Any]:
-    """Build Agent Registry metadata from a loaded project."""
+def build_agent_registry_metadata(
+    project: AgentProject,
+    deployment: DeploymentManifest,
+) -> dict[str, Any]:
+    """Build Agent Registry metadata from a loaded project and deployment."""
     manifest = project.manifest
     data = project.data
-    deployment = manifest.spec.deployment
+    deploy_spec = deployment.spec
     vertex = manifest.spec.runtime.vertex
 
     mcp_servers: list[str] = []
     if data.mcp_config:
         mcp_servers = sorted(parse_mcp_dict(data.mcp_config).mcp_servers.keys())
 
+    subagent_ir = compile_subagent_ir(data.subagents)
+    enable_subagents = data.manifest.spec.runtime.capabilities.enable_subagents
+    if enable_subagents is None:
+        enable_subagents = bool(subagent_ir)
+
     tools = [
         str(tool["name"])
-        for tool in compile_tool_metadata(data)
+        for tool in compile_tool_metadata(
+            data,
+            subagent_ir,
+            enable_subagents=enable_subagents,
+        )
         if isinstance(tool, dict) and "name" in tool
     ]
 
@@ -50,9 +64,9 @@ def build_agent_registry_metadata(project: AgentProject) -> dict[str, Any]:
             "location": vertex.location,
         },
         "deployment": {
-            "target": deployment.target if deployment else "agent-runtime",
-            "serviceAccount": deployment.service_account if deployment else None,
-            "labels": dict(deployment.labels) if deployment else {},
+            "target": deploy_spec.target,
+            "serviceAccount": deploy_spec.service_account,
+            "labels": dict(deploy_spec.labels),
         },
         "mcpServers": mcp_servers,
         "tools": tools,

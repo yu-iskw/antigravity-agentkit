@@ -29,6 +29,7 @@ fi
 
 cd "${MODULE_DIR}"
 uv run pytest -v -s --cache-clear \
+	-m "not live" \
 	--cov="${MODULE_DIR}/src/antigravity_agentkit" \
 	--cov-report=term-missing \
 	--cov-report=xml \

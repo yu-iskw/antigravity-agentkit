@@ -7,7 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from antigravity_agentkit.cli import app
+from antigravity_agentkit.cli import _print_plain, app
 
 runner = CliRunner()
 try:
@@ -94,3 +94,16 @@ def test_cli_eval_mcp_agent(mcp_agent_dir: Path) -> None:
     assert result.exit_code == 0, result.stdout
     assert "PASS" in result.stdout
     assert "1/1 passed" in result.stdout
+
+
+def test_cli_run_help_includes_interactive_flag() -> None:
+    """run command documents the interactive approval flag."""
+    result = runner.invoke(app, ["run", "--help"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "--interactive" in result.stdout
+
+
+def test_print_plain_does_not_interpret_markup() -> None:
+    """Agent output with bracketed paths must not crash Rich markup rendering."""
+    _print_plain("[/Users/yu/local/src/github/antigravity-agentkit]")

@@ -59,9 +59,12 @@ class VertexConfig(BaseModel):
 class CapabilitiesConfig(BaseModel):
     """Agent capability restrictions."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     mode: Literal["open", "restricted", "locked"] = "restricted"
+    enabled_tools: list[str] = Field(default_factory=list, alias="enabledTools")
+    disabled_tools: list[str] = Field(default_factory=list, alias="disabledTools")
+    enable_subagents: bool | None = Field(default=None, alias="enableSubagents")
 
 
 class RuntimeSpec(BaseModel):
@@ -162,63 +165,6 @@ class PoliciesSpec(BaseModel):
     file: str = Field(default="policies.yaml", min_length=1)
 
 
-class ResourceLimits(BaseModel):
-    """Container resource limits for deployment."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    cpu: str | None = None
-    memory: str | None = None
-
-
-class GatewayConfig(BaseModel):
-    """Agent Gateway ingress/egress configuration."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    enabled: bool = False
-    egress_policy: str | None = Field(default=None, alias="egressPolicy")
-    required_endpoints: list[str] = Field(
-        default_factory=list,
-        alias="requiredEndpoints",
-    )
-
-
-class DeploymentSpec(BaseModel):
-    """Agent Runtime deployment configuration."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    target: Literal["agent-runtime", "local"] = "agent-runtime"
-    display_name: str | None = Field(default=None, alias="displayName")
-    service_account: str | None = Field(default=None, alias="serviceAccount")
-    min_instances: int | None = Field(default=None, alias="minInstances", ge=0)
-    max_instances: int | None = Field(default=None, alias="maxInstances", ge=0)
-    resource_limits: ResourceLimits | None = Field(
-        default=None,
-        alias="resourceLimits",
-    )
-    container_concurrency: int | None = Field(
-        default=None,
-        alias="containerConcurrency",
-        ge=1,
-    )
-    labels: dict[str, str] = Field(default_factory=dict)
-    gateway: GatewayConfig | None = None
-
-    @model_validator(mode="after")
-    def validate_instance_bounds(self) -> DeploymentSpec:
-        """Ensure max_instances is not less than min_instances."""
-        if (
-            self.min_instances is not None
-            and self.max_instances is not None
-            and self.max_instances < self.min_instances
-        ):
-            msg = "deployment.maxInstances must be >= deployment.minInstances."
-            raise ValueError(msg)
-        return self
-
-
 class AgentRegistryConfig(BaseModel):
     """Agent Registry publishing options."""
 
@@ -268,7 +214,7 @@ class EvalsSpec(BaseModel):
 
 
 class AgentSpec(BaseModel):
-    """Agent behavioral, governance, and deployment specification."""
+    """Agent behavioral and governance specification."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -278,7 +224,6 @@ class AgentSpec(BaseModel):
     skills: SkillsSpec | None = None
     subagents: list[SubagentSpec] = Field(default_factory=list)
     policies: PoliciesSpec | None = None
-    deployment: DeploymentSpec | None = None
     registry: RegistrySpec | None = None
     evals: EvalsSpec | None = None
 
@@ -342,6 +287,8 @@ class CompiledAgentConfig:
     tools: list[Any] = field(default_factory=list)
     runtime_tools: list[Any] = field(default_factory=list)
     policies: list[dict[str, Any]] = field(default_factory=list)
+    capabilities: dict[str, Any] = field(default_factory=dict)
+    subagents: list[dict[str, Any]] = field(default_factory=list)
     vertex: dict[str, Any] = field(default_factory=dict)
     model: str | None = None
     skill_index: Any = None
@@ -356,9 +303,7 @@ __all__ = [
     "AgentSpec",
     "CapabilitiesConfig",
     "CompiledAgentConfig",
-    "DeploymentSpec",
     "EvalsSpec",
-    "GatewayConfig",
     "InstructionsSpec",
     "McpAdmissionPolicy",
     "McpRegistryConfig",
@@ -366,7 +311,6 @@ __all__ = [
     "PoliciesSpec",
     "RegistrySkillRef",
     "RegistrySpec",
-    "ResourceLimits",
     "RuntimeSpec",
     "SkillRegistryConfig",
     "SkillsSpec",

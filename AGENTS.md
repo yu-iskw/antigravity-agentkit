@@ -154,3 +154,22 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 - **`.gemini/settings.json`** — Gemini CLI project context
 - **`.cursor/rules/`** — Optional Cursor rules (e.g. Always Apply); see [Cursor: Rules](https://cursor.com/docs/rules)
 - **[`.codex/config.toml`](.codex/config.toml)** — Optional Codex defaults (sandbox, approvals); links above under **OpenAI Codex**
+
+## Learned User Preferences
+
+- Keep plans and implementations minimal; stay within the stated milestone (e.g. P0, M1) and avoid over-engineering beyond it.
+- Spawn parallel subagents for exploration, simplify/review passes, and verification instead of doing those sequentially in one agent.
+- When implementing from an attached plan, do not edit the plan file itself.
+- Prefer diagram-backed plans when making architecture or separation decisions.
+- Commit and push only when explicitly requested.
+
+## Learned Workspace Facts
+
+- This repo is **antigravity-agentkit** — a declarative compiler and governance layer over the Antigravity SDK; see RFC `docs/rfcs/0001-declarative-antigravity-agentkit.md`.
+- **Implement** lifecycle: `agent.yaml` plus assets → load, validate, compile, run, eval (`AgentProject`); no `deployment.yaml` required.
+- **Ship** lifecycle: optional `deployment.yaml` is required for `package`, `deploy`, and `register`; packaging lives in `antigravity_agentkit.deploy`, not `AgentProject`.
+- `spec.deployment` was removed from `agent.yaml` (hard break); infra and deploy target belong in `deployment.yaml` only.
+- Bundled `examples/` agents (`hello_world`, `skills`, `subagents`, `mcp`) are implement-only demos and omit `deployment.yaml`.
+- Example default model is `gemini-3.1-flash-lite`; live `run` in `dev/test_examples.sh` needs `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
+- Canonical deploy target is `agent-platform`; `gemini-api`, `ai-studio`, and `cloud-run` are schema stubs until adapters land.
+- P0 SDK emitter wires capabilities, MCP HTTP with per-server tool filters, subagent `SubagentConfig`, and `run --interactive` HITL through `compile_to_sdk_config`.

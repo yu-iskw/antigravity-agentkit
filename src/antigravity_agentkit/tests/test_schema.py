@@ -131,3 +131,23 @@ def test_subagent_markdown_requires_file() -> None:
 
     with pytest.raises(ValidationError, match="file"):
         AgentManifest.model_validate(data)
+
+
+def test_capabilities_enabled_tools_validate() -> None:
+    """Capabilities enabledTools accepts builtin tool names."""
+    data = _minimal_manifest_dict(
+        spec={
+            "instructions": {"system": "SYSTEM.md"},
+            "runtime": {
+                "framework": "antigravity",
+                "capabilities": {
+                    "mode": "restricted",
+                    "enabledTools": ["search_web", "view_file"],
+                },
+            },
+        }
+    )
+
+    manifest = AgentManifest.model_validate(data)
+
+    assert manifest.spec.runtime.capabilities.enabled_tools == ["search_web", "view_file"]

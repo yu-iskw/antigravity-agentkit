@@ -1,9 +1,9 @@
 apiVersion: antigravity-agentkit.dev/v1alpha1
 kind: Agent
 metadata:
-  name: subagents-demo
-  displayName: Subagents Demo
-  description: Demonstrates markdown subagent delegation tools.
+  name: ship-agent
+  displayName: Ship Agent
+  description: Minimal agent fixture for ship command tests.
 spec:
   runtime:
     framework: antigravity
@@ -12,7 +12,3 @@ spec:
       enabled: false
   instructions:
     system: SYSTEM.md
-  subagents:
-    - name: proofreader
-      type: markdown
-      file: subagents/proofreader.md

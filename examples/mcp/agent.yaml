@@ -10,7 +10,7 @@ metadata:
 spec:
   runtime:
     framework: antigravity
-    model: gemini-3-flash-preview
+    model: gemini-3.1-flash-lite
     vertex:
       enabled: false
     capabilities:

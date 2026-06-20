@@ -1,4 +1,4 @@
-"""Agent Runtime deployment adapters."""
+"""Google Cloud Agent Platform deployment adapter."""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ import os
 from pathlib import Path
 from typing import Any
 
+from antigravity_agentkit.deploy.package import build_source_package
 from antigravity_agentkit.exceptions import DeployError
 from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.schema.deployment import DeploymentManifest
 
 _DEPLOY_LABEL = "managed-by"
 _DEPLOY_LABEL_VALUE = "antigravity-agentkit"
@@ -16,17 +18,24 @@ _DEPLOY_LABEL_VALUE = "antigravity-agentkit"
 
 def build_deployment_config(
     project: AgentProject,
+    deployment: DeploymentManifest,
     project_id: str,
     location: str,
 ) -> dict[str, Any]:
     """Build Agent Engine deployment configuration dictionary."""
+    if deployment.spec.target != "agent-platform":
+        raise DeployError(
+            f"Deploy target {deployment.spec.target!r} is not implemented yet. "
+            "Only 'agent-platform' is supported in M1."
+        )
+
     manifest = project.manifest
-    deployment = manifest.spec.deployment
+    deploy_spec = deployment.spec
     vertex = manifest.spec.runtime.vertex
 
     display_name = manifest.metadata.display_name or manifest.metadata.name
-    if deployment and deployment.display_name:
-        display_name = deployment.display_name
+    if deploy_spec.display_name:
+        display_name = deploy_spec.display_name
 
     config: dict[str, Any] = {
         "source_packages": [str(project.root)],
@@ -42,6 +51,7 @@ def build_deployment_config(
         },
         "project": project_id,
         "location": location,
+        "target": deploy_spec.target,
     }
 
     if vertex.enabled:
@@ -50,37 +60,28 @@ def build_deployment_config(
             "location": vertex.location or location,
         }
 
-    if deployment:
-        if deployment.service_account:
-            config["service_account"] = deployment.service_account
-        if deployment.min_instances is not None:
-            config["min_instances"] = deployment.min_instances
-        if deployment.max_instances is not None:
-            config["max_instances"] = deployment.max_instances
-        if deployment.container_concurrency is not None:
-            config["container_concurrency"] = deployment.container_concurrency
-        if deployment.resource_limits:
-            limits: dict[str, str] = {}
-            if deployment.resource_limits.cpu:
-                limits["cpu"] = deployment.resource_limits.cpu
-            if deployment.resource_limits.memory:
-                limits["memory"] = deployment.resource_limits.memory
-            if limits:
-                config["resource_limits"] = limits
-        if deployment.labels:
-            config["labels"].update(deployment.labels)
-        if deployment.gateway and deployment.gateway.enabled:
-            config["gateway"] = deployment.gateway.model_dump(by_alias=True, exclude_none=True)
+    if deploy_spec.service_account:
+        config["service_account"] = deploy_spec.service_account
+    if deploy_spec.min_instances is not None:
+        config["min_instances"] = deploy_spec.min_instances
+    if deploy_spec.max_instances is not None:
+        config["max_instances"] = deploy_spec.max_instances
+    if deploy_spec.container_concurrency is not None:
+        config["container_concurrency"] = deploy_spec.container_concurrency
+    if deploy_spec.resource_limits:
+        limits: dict[str, str] = {}
+        if deploy_spec.resource_limits.cpu:
+            limits["cpu"] = deploy_spec.resource_limits.cpu
+        if deploy_spec.resource_limits.memory:
+            limits["memory"] = deploy_spec.resource_limits.memory
+        if limits:
+            config["resource_limits"] = limits
+    if deploy_spec.labels:
+        config["labels"].update(deploy_spec.labels)
+    if deploy_spec.gateway and deploy_spec.gateway.enabled:
+        config["gateway"] = deploy_spec.gateway.model_dump(by_alias=True, exclude_none=True)
 
     return config
-
-
-def build_source_package(
-    project: AgentProject,
-    output_dir: str | Path | None = None,
-) -> Path:
-    """Build a deployable source package from the agent directory."""
-    return project.package(output_dir=output_dir)
 
 
 def _has_gcp_credentials() -> bool:
@@ -100,15 +101,16 @@ def _has_gcp_credentials() -> bool:
 
 def deploy(
     project: AgentProject,
+    deployment: DeploymentManifest,
     project_id: str,
     location: str,
     *,
     output_path: str | Path | None = None,
     dry_run: bool | None = None,
 ) -> dict[str, Any]:
-    """Deploy agent to Agent Runtime or write config in dry-run mode."""
+    """Deploy agent to Agent Platform or write config in dry-run mode."""
     package_dir = build_source_package(project)
-    config = build_deployment_config(project, project_id, location)
+    config = build_deployment_config(project, deployment, project_id, location)
     config["source_packages"] = [str(package_dir)]
 
     use_dry_run = dry_run if dry_run is not None else not _has_gcp_credentials()
@@ -124,6 +126,6 @@ def deploy(
         }
 
     raise DeployError(
-        "Live Agent Runtime deployment is not implemented yet. "
+        "Live Agent Platform deployment is not implemented yet. "
         "Use dry_run=True or deploy without GCP credentials to emit config."
     )

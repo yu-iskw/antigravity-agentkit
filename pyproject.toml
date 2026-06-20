@@ -75,6 +75,9 @@ antigravity = ["google-antigravity>=0.1.4"]
 
 [tool.pytest.ini_options]
 testpaths = ["src/antigravity_agentkit/tests"]
+markers = [
+  "live: real network/SDK integration (excluded from default make test)",
+]
 
 [dependency-groups]
 dev = [

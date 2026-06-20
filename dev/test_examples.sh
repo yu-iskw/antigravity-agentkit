@@ -45,8 +45,19 @@ echo "==> eval mcp example"
 
 api_key="${GEMINI_API_KEY:-${GOOGLE_API_KEY-}}"
 if [[ -n ${api_key} ]]; then
-	echo "==> live run hello_world (API key detected)"
-	"${CLI[@]}" run examples/hello_world --prompt "Reply with exactly: hello from agentkit"
+	echo "==> live run examples (API key detected)"
+	LIVE_PROMPTS=(
+		"hello_world|Reply with exactly: hello from agentkit"
+		"skills|Say hello in one short sentence."
+		"subagents|Say hello in one short sentence."
+		"mcp|Say hello in one short sentence."
+	)
+	for entry in "${LIVE_PROMPTS[@]}"; do
+		name="${entry%%|*}"
+		prompt="${entry#*|}"
+		echo "    run examples/${name}"
+		timeout 60 "${CLI[@]}" run "examples/${name}" --prompt "${prompt}"
+	done
 else
 	echo "==> skip live run (set GEMINI_API_KEY or GOOGLE_API_KEY to enable)"
 fi

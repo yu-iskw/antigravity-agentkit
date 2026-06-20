@@ -8,6 +8,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 HELLO_WORLD_DIR = REPO_ROOT / "examples" / "hello_world"
+SHIP_AGENT_DIR = Path(__file__).resolve().parent / "fixtures" / "ship_agent"
 MCP_DIR = REPO_ROOT / "examples" / "mcp"
 SKILLS_DIR = REPO_ROOT / "examples" / "skills"
 SUBAGENTS_DIR = REPO_ROOT / "examples" / "subagents"
@@ -17,6 +18,12 @@ SUBAGENTS_DIR = REPO_ROOT / "examples" / "subagents"
 def repo_root() -> Path:
     """Return the repository root directory."""
     return REPO_ROOT
+
+
+@pytest.fixture
+def ship_agent_dir() -> Path:
+    """Return the ship-agent test fixture (agent + deployment.yaml)."""
+    return SHIP_AGENT_DIR
 
 
 @pytest.fixture

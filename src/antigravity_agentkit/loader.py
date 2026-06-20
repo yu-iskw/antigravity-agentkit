@@ -4,32 +4,57 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import yaml
+from pydantic import BaseModel
 
 from antigravity_agentkit.exceptions import LoadError
 from antigravity_agentkit.schema.agent import AgentManifest, AgentProjectData
+from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.schema.evals import EvalSuite
 from antigravity_agentkit.skills import discover_skills, load_skills
 from antigravity_agentkit.subagents import discover_subagents, load_subagents_from_specs
 
+AGENT_FILENAME = "agent.yaml"
+DEPLOYMENT_FILENAME = "deployment.yaml"
 
-def load_agent_yaml(path: Path) -> tuple[AgentManifest, dict[str, Any]]:
-    """Load and parse agent.yaml."""
+TModel = TypeVar("TModel", bound=BaseModel)
+
+
+def load_yaml_manifest(
+    path: Path, model_type: type[TModel], label: str
+) -> tuple[TModel, dict[str, Any]]:
+    """Load and parse a YAML manifest file into a Pydantic model."""
     if not path.is_file():
-        raise LoadError(f"Agent manifest not found: {path}")
+        raise LoadError(f"{label} not found: {path}")
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         raise LoadError(f"Invalid YAML in {path}: {exc}") from exc
     if not isinstance(raw, dict):
-        raise LoadError(f"Agent manifest must be a YAML mapping: {path}")
+        raise LoadError(f"{label} must be a YAML mapping: {path}")
     try:
-        manifest = AgentManifest.model_validate(raw)
+        manifest = model_type.model_validate(raw)
     except Exception as exc:
-        raise LoadError(f"Invalid agent manifest in {path}: {exc}") from exc
+        raise LoadError(f"Invalid {label} in {path}: {exc}") from exc
     return manifest, raw
+
+
+def load_agent_yaml(path: Path) -> tuple[AgentManifest, dict[str, Any]]:
+    """Load and parse agent.yaml."""
+    return load_yaml_manifest(path, AgentManifest, "Agent manifest")
+
+
+def load_deployment(root: str | Path) -> DeploymentManifest:
+    """Load deployment.yaml from an agent directory."""
+    agent_root = Path(root).resolve()
+    manifest, _ = load_yaml_manifest(
+        agent_root / DEPLOYMENT_FILENAME,
+        DeploymentManifest,
+        "Deployment manifest",
+    )
+    return manifest
 
 
 def load_system_md(path: Path) -> str:
@@ -119,7 +144,7 @@ def load_agent_directory(path: str | Path) -> AgentProjectData:
     if not root.is_dir():
         raise LoadError(f"Agent directory not found: {root}")
 
-    manifest, manifest_raw = load_agent_yaml(root / "agent.yaml")
+    manifest, manifest_raw = load_agent_yaml(root / AGENT_FILENAME)
     system_path = root / manifest.spec.instructions.system
     system_instructions = load_system_md(system_path)
 

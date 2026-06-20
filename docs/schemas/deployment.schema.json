@@ -1,0 +1,215 @@
+{
+  "$defs": {
+    "DeploymentMetadata": {
+      "additionalProperties": false,
+      "description": "Identity metadata for a deployment manifest.",
+      "properties": {
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": ["name"],
+      "title": "DeploymentMetadata",
+      "type": "object"
+    },
+    "DeploymentSpec": {
+      "additionalProperties": false,
+      "description": "Platform deployment configuration.",
+      "properties": {
+        "target": {
+          "default": "agent-platform",
+          "enum": ["agent-platform", "gemini-api", "ai-studio", "cloud-run"],
+          "title": "Target",
+          "type": "string"
+        },
+        "displayName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Displayname"
+        },
+        "serviceAccount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Serviceaccount"
+        },
+        "minInstances": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mininstances"
+        },
+        "maxInstances": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxinstances"
+        },
+        "resourceLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResourceLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "containerConcurrency": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Containerconcurrency"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "gateway": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GatewayConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "DeploymentSpec",
+      "type": "object"
+    },
+    "GatewayConfig": {
+      "additionalProperties": false,
+      "description": "Agent Gateway ingress/egress configuration.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "egressPolicy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Egresspolicy"
+        },
+        "requiredEndpoints": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Requiredendpoints",
+          "type": "array"
+        }
+      },
+      "title": "GatewayConfig",
+      "type": "object"
+    },
+    "ResourceLimits": {
+      "additionalProperties": false,
+      "description": "Container resource limits for deployment.",
+      "properties": {
+        "cpu": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cpu"
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Memory"
+        }
+      },
+      "title": "ResourceLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Top-level deployment.yaml manifest.",
+  "properties": {
+    "apiVersion": {
+      "const": "antigravity-agentkit.dev/v1alpha1",
+      "default": "antigravity-agentkit.dev/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "kind": {
+      "const": "Deployment",
+      "default": "Deployment",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/DeploymentMetadata"
+    },
+    "spec": {
+      "$ref": "#/$defs/DeploymentSpec"
+    }
+  },
+  "required": ["metadata", "spec"],
+  "title": "Deployment Manifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

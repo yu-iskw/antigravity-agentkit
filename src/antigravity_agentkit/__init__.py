@@ -3,7 +3,7 @@
 from antigravity_agentkit.compiler import compile_agent_config, compile_to_sdk_config
 from antigravity_agentkit.deploy import build_deployment_config, build_source_package, deploy
 from antigravity_agentkit.evals import run_evals
-from antigravity_agentkit.loader import load_agent_directory
+from antigravity_agentkit.loader import load_agent_directory, load_deployment
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.registry import build_agent_registry_metadata, publish_skill
 from antigravity_agentkit.runtime import RuntimeAgent
@@ -25,6 +25,7 @@ __all__ = [
     "deploy",
     "load_agent",
     "load_agent_directory",
+    "load_deployment",
     "publish_skill",
     "run_evals",
     "validate_project",

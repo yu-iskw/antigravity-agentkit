@@ -10,9 +10,13 @@ import typer
 from rich.console import Console
 
 from antigravity_agentkit.compiler import compile_agent_config, compile_to_sdk_config
-from antigravity_agentkit.deploy import build_source_package, deploy
+from antigravity_agentkit.deploy import (
+    build_source_package,
+    deploy,
+    load_deployment,
+)
 from antigravity_agentkit.evals import assert_evals_passed, run_evals
-from antigravity_agentkit.exceptions import AgentKitError
+from antigravity_agentkit.exceptions import AgentKitError, ValidationError
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.registry import (
     build_agent_registry_metadata,
@@ -20,11 +24,16 @@ from antigravity_agentkit.registry import (
     publish_skill,
 )
 from antigravity_agentkit.runtime import RuntimeAgent
-from antigravity_agentkit.validator import validate_project
+from antigravity_agentkit.schema.deployment import DeploymentManifest
+from antigravity_agentkit.validator import validate_deployment, validate_project
 
 app = typer.Typer(
     name="antigravity-agentkit",
-    help="Antigravity AgentKit — declarative agent compiler and governance layer.",
+    help=(
+        "Antigravity AgentKit — declarative agent compiler and governance layer.\n\n"
+        "Implement: init, validate, compile, run, eval\n"
+        "Ship: package, deploy, register (require deployment.yaml)"
+    ),
     no_args_is_help=True,
 )
 console = Console()
@@ -50,12 +59,27 @@ def _resolve_path(path: Path) -> Path:
     return path.expanduser().resolve()
 
 
+def _print_plain(text: str) -> None:
+    """Print agent or user text without Rich markup interpretation."""
+    console.print(text, markup=False, highlight=False)
+
+
 def _print_error(exc: AgentKitError) -> None:
     console.print(f"[red]Error:[/red] {exc}")
 
 
 def _load_project(path: Path) -> AgentProject:
     return AgentProject.load(_resolve_path(path))
+
+
+def _load_ship_context(path: Path) -> tuple[AgentProject, DeploymentManifest]:
+    """Load agent project and validated deployment.yaml for ship commands."""
+    project = _load_project(path)
+    deployment = load_deployment(project.root)
+    collector = validate_deployment(project.data, deployment)
+    if collector.has_errors():
+        raise ValidationError(collector.format_all())
+    return project, deployment
 
 
 @app.command("init")
@@ -106,7 +130,7 @@ def validate_cmd(
     level: _LevelChoice = typer.Option(_LevelChoice.SCHEMA, "--level", "-l"),
     profile: _ProfileChoice = typer.Option(_ProfileChoice.DEV_OPEN, "--profile", "-p"),
 ) -> None:
-    """Validate agent manifest, security rules, and cloud configuration."""
+    """Validate agent manifest, security rules, and optional deployment.yaml."""
     project = _load_project(path)
     collector = validate_project(
         project.root,
@@ -154,14 +178,24 @@ def run_cmd(
     path: Path = typer.Argument(..., help="Path to agent directory."),
     prompt: str = typer.Option(..., "--prompt", "-p", help="User prompt to send."),
     production: bool = typer.Option(False, "--production"),
+    interactive: bool = typer.Option(
+        False,
+        "--interactive/--no-interactive",
+        help="Prompt for ask_user policy approvals (default: deny).",
+    ),
 ) -> None:
     """Run a local agent chat turn."""
     import asyncio
 
     async def _run() -> None:
         runtime = RuntimeAgent.from_directory(_resolve_path(path), production=production)
-        response = await runtime.run_chat(prompt, production=production)
-        console.print(str(response))
+        _print_plain(
+            await runtime.run_chat(
+                prompt,
+                production=production,
+                interactive=interactive,
+            )
+        )
 
     try:
         asyncio.run(_run())
@@ -196,9 +230,9 @@ def package_cmd(
     path: Path = typer.Argument(..., help="Path to agent directory."),
     output_dir: Path | None = typer.Option(None, "--output-dir", "-o"),
 ) -> None:
-    """Build a deployable source package."""
+    """[Ship] Build a deployable source package (requires deployment.yaml)."""
     try:
-        project = _load_project(path)
+        project, _ = _load_ship_context(path)
         package_path = build_source_package(project, output_dir=output_dir)
         console.print(f"[green]Package built at[/green] {package_path}")
     except AgentKitError as exc:
@@ -214,11 +248,12 @@ def deploy_cmd(
     output: Path | None = typer.Option(None, "--output", "-o", help="Dry-run config output path."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Force dry-run mode."),
 ) -> None:
-    """Deploy to Agent Runtime or emit deployment config."""
+    """[Ship] Deploy to Agent Platform or emit deployment config (requires deployment.yaml)."""
     try:
-        agent_project = _load_project(path)
+        agent_project, deployment = _load_ship_context(path)
         summary = deploy(
             agent_project,
+            deployment,
             project_id,
             location,
             output_path=output,
@@ -258,10 +293,10 @@ def register_cmd(
     location: str = typer.Option(..., "--location", "-l"),
     output: Path | None = typer.Option(None, "--output", "-o"),
 ) -> None:
-    """Emit Agent Registry metadata (local stub)."""
+    """[Ship] Emit Agent Registry metadata (requires deployment.yaml)."""
     try:
-        agent_project = _load_project(path)
-        metadata = build_agent_registry_metadata(agent_project)
+        agent_project, deployment = _load_ship_context(path)
+        metadata = build_agent_registry_metadata(agent_project, deployment)
         metadata["registry"] = {
             "project": project_id,
             "location": location,

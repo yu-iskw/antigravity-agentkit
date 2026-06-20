@@ -112,6 +112,7 @@ sdk_config = compile_to_sdk_config(compiled)
 ```python
 agent = project.create_agent()
 agent_prod = project.create_agent(production=True)
+interactive_agent = project.create_agent(interactive=True)
 
 async def chat_once():
     async with agent:
@@ -120,15 +121,22 @@ async def chat_once():
 # Requires: pip install 'antigravity-agentkit[antigravity]'
 ```
 
+`interactive=True` wires a real `ask_user` approval handler for `askUser` / `requireApproval` policies. The CLI equivalent is `antigravity-agentkit run --interactive`.
+
 Requires `google-antigravity`. Raises `CompilationError` if the extra is missing.
 
 ### Package
 
 ```python
-package_dir = project.package()
+from antigravity_agentkit import AgentProject, build_source_package, load_deployment
+
+project = AgentProject.load("src/antigravity_agentkit/tests/fixtures/ship_agent")
+load_deployment(project.root)  # required before package
+
+package_dir = build_source_package(project)
 # default: <agent-root>/.build/<metadata.name>/
 
-custom = project.package(output_dir="/tmp/my-agent-build")
+custom = build_source_package(project, output_dir="/tmp/my-agent-build")
 ```
 
 See [Packaging and deployment](09-packaging-and-deployment.md) for output layout.
@@ -144,12 +152,15 @@ from antigravity_agentkit import RuntimeAgent
 async def main():
     runtime = RuntimeAgent.from_directory("examples/hello_world")
     response = await runtime.run_chat("Hello!", production=False)
-    print(response)
+    print(await response.text())
+
+    # Prompt for ask_user policy approvals:
+    response = await runtime.run_chat("Delete prod data", interactive=True)
 
 asyncio.run(main())
 ```
 
-`from_directory(..., production=True)` calls `project.validate(production=True)` before constructing the wrapper. `run_chat()` calls `create_agent()` and `agent.chat(prompt)` inside an async context manager.
+`from_directory(..., production=True)` calls `project.validate(production=True)` before constructing the wrapper. `run_chat()` calls `create_agent()` and `agent.chat(prompt)` inside an async context manager. Pass `interactive=True` when `policies.yaml` contains `askUser` or `requireApproval` rules.
 
 ### Policy compilation helper
 
@@ -162,7 +173,7 @@ policies = compile_sdk_policies(compiled.policies)
 # list of google.antigravity.policy objects
 ```
 
-Non-interactive mode denies `ask_user` / `require_approval` tool calls via a default handler that returns `False`.
+Non-interactive mode (the default) denies `ask_user` / `require_approval` tool calls via a default handler that returns `False`. Use `create_agent(interactive=True)`, `run_chat(..., interactive=True)`, or `antigravity-agentkit run --interactive` to approve interactively.
 
 ## Deploy and registry helpers
 
@@ -175,21 +186,26 @@ from antigravity_agentkit import (
     build_agent_registry_metadata,
     publish_skill,
 )
+from antigravity_agentkit.deploy import load_deployment
 
-project = AgentProject.load("examples/hello_world")
+project = AgentProject.load("src/antigravity_agentkit/tests/fixtures/ship_agent")
+deployment = load_deployment(project.root)
 
 package_path = build_source_package(project)
-config = build_deployment_config(project, project_id="my-project", location="us-central1")
+config = build_deployment_config(
+    project, deployment, project_id="my-project", location="us-central1"
+)
 
 summary = deploy(
     project,
+    deployment,
     "my-project",
     "us-central1",
     dry_run=True,
-    output_path="examples/hello_world/.build/deployment-config.json",
+    output_path="/tmp/deployment-config.json",
 )
 
-metadata = build_agent_registry_metadata(project)
+metadata = build_agent_registry_metadata(project, deployment)
 skill_result = publish_skill("path/to/skills/my-skill", project="my-project", location="us-central1")
 ```
 
@@ -222,26 +238,27 @@ The CLI is a thin Typer wrapper around the same library functions. Behavior shou
 
 ```python
 from antigravity_agentkit import AgentProject, deploy, build_agent_registry_metadata
+from antigravity_agentkit.deploy import load_deployment
 
-AGENT = "examples/mcp"
+AGENT = "examples/hello_world"
 PROJECT_ID = "my-gcp-project"
 LOCATION = "us-central1"
 
 project = AgentProject.load(AGENT)
+deployment = load_deployment(project.root)
 
 # 1. Gate
 project.validate(production=True)
 
 # 2. Inspect compile output
 compiled = project.compile(production=True)
-assert compiled.policies, "expected policies for data agent"
 
 # 3. Package + deployment config
-deploy_summary = deploy(project, PROJECT_ID, LOCATION, dry_run=True)
+deploy_summary = deploy(project, deployment, PROJECT_ID, LOCATION, dry_run=True)
 print(deploy_summary["package_dir"])
 
 # 4. Registry metadata for inventory
-metadata = build_agent_registry_metadata(project)
+metadata = build_agent_registry_metadata(project, deployment)
 metadata["registry"] = {"project": PROJECT_ID, "location": LOCATION}
 ```
 

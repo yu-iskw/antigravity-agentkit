@@ -94,12 +94,109 @@ def compile_delegation_tools(
     ]
 
 
+def delegation_tool_dict_from_ir(entry: dict[str, Any]) -> dict[str, Any]:
+    """Return serializable delegation metadata derived from subagent IR."""
+    safe_name = entry["name"].replace("-", "_")
+    return {
+        "name": f"delegate_to_{safe_name}",
+        "description": entry.get("description")
+        or f"Delegate tasks to the {entry['name']} subagent.",
+        "subagent": entry["name"],
+        "tools": list(entry.get("tools") or []),
+        "system_instructions": entry.get("systemInstructions", ""),
+    }
+
+
+def sdk_subagents_supported() -> bool:
+    """Return True when the installed SDK exposes static SubagentConfig."""
+    try:
+        from google.antigravity import types
+    except ImportError:
+        return False
+    return getattr(types, "SubagentConfig", None) is not None
+
+
 def delegation_tool_dict(metadata: DelegationToolMetadata) -> dict[str, Any]:
     """Return a serializable delegation tool definition."""
-    return {
-        "name": metadata.tool_name,
-        "description": metadata.description,
-        "subagent": metadata.subagent_name,
-        "tools": list(metadata.tools),
-        "system_instructions": metadata.system_instructions,
-    }
+    return delegation_tool_dict_from_ir(
+        {
+            "name": metadata.subagent_name,
+            "description": metadata.description,
+            "systemInstructions": metadata.system_instructions,
+            "tools": list(metadata.tools),
+        }
+    )
+
+
+def _coerce_loaded_subagents(subagents: dict[str, Any]) -> dict[str, LoadedSubagent]:
+    """Coerce loaded subagents dict to LoadedSubagent instances."""
+    result: dict[str, LoadedSubagent] = {}
+    for name, subagent in subagents.items():
+        if isinstance(subagent, LoadedSubagent):
+            result[name] = subagent
+    return result
+
+
+def compile_subagent_ir(subagents: dict[str, Any]) -> list[dict[str, Any]]:
+    """Compile loaded subagents into serializable IR for the SDK emitter."""
+    loaded = _coerce_loaded_subagents(subagents)
+    return [
+        {
+            "name": subagent.name,
+            "description": subagent.description,
+            "systemInstructions": subagent.body,
+            "tools": list(subagent.tools),
+        }
+        for subagent in sorted(loaded.values(), key=lambda item: item.name)
+    ]
+
+
+def try_compile_sdk_subagents(subagent_ir: list[dict[str, Any]]) -> list[Any]:
+    """Compile subagent IR to SDK SubagentConfig objects when SDK is available."""
+    if not subagent_ir:
+        return []
+
+    try:
+        from google.antigravity import types
+    except ImportError:
+        return []
+
+    subagent_config = getattr(types, "SubagentConfig", None)
+    if subagent_config is None:
+        return []
+
+    sdk_subagents: list[Any] = []
+    for entry in subagent_ir:
+        kwargs: dict[str, Any] = {
+            "name": entry["name"],
+            "description": entry["description"],
+            "system_instructions": entry["systemInstructions"],
+        }
+        tools = entry.get("tools") or []
+        if tools:
+            kwargs["tools"] = list(tools)
+        sdk_subagents.append(subagent_config(**kwargs))
+    return sdk_subagents
+
+
+def subagent_index_section(
+    subagent_ir: list[dict[str, Any]],
+    *,
+    enable_subagents: bool = True,
+) -> str:
+    """Render subagent definitions for system-instruction injection."""
+    if not subagent_ir or not enable_subagents or sdk_subagents_supported():
+        return ""
+
+    lines = ["## Available Subagents", ""]
+    for entry in subagent_ir:
+        lines.append(f"### {entry['name']}")
+        if entry.get("description"):
+            lines.append(entry["description"])
+        if entry.get("tools"):
+            tool_list = ", ".join(f"`{tool}`" for tool in entry["tools"])
+            lines.append(f"Allowed tools: {tool_list}")
+        lines.append("")
+        lines.append(entry.get("systemInstructions", "").strip())
+        lines.append("")
+    return "\n".join(lines).strip()

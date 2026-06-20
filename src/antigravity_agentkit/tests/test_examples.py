@@ -27,10 +27,10 @@ EXAMPLE_NAMES = ("hello_world", "mcp", "skills", "subagents")
 
 @pytest.mark.parametrize("example_name", EXAMPLE_NAMES)
 def test_example_manifest_uses_gemini_flash_preview(example_name: str, repo_root: Path) -> None:
-    """Each example pins gemini-3-flash-preview for cost-efficient demos."""
+    """Each example pins gemini-3.1-flash-lite for cost-efficient demos."""
     data = load_agent_directory(repo_root / "examples" / example_name)
 
-    assert data.manifest.spec.runtime.model == "gemini-3-flash-preview"
+    assert data.manifest.spec.runtime.model == "gemini-3.1-flash-lite"
 
 
 @pytest.mark.parametrize("example_name", EXAMPLE_NAMES)
@@ -50,7 +50,7 @@ def test_example_compile_metadata(example_name: str, repo_root: Path) -> None:
     """Every example compiles to runtime metadata."""
     compiled = compile_agent_config(repo_root / "examples" / example_name)
 
-    assert compiled.model == "gemini-3-flash-preview"
+    assert compiled.model == "gemini-3.1-flash-lite"
     assert compiled.system_instructions
 
 
@@ -66,6 +66,7 @@ def test_mcp_example_has_clock_server_and_policies(mcp_agent_dir: Path) -> None:
     assert len(data.evals) == 1
 
 
+@pytest.mark.live
 @pytest.mark.skipif(
     not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")),
     reason="Set GEMINI_API_KEY or GOOGLE_API_KEY for live example run",
@@ -79,3 +80,5 @@ def test_hello_world_live_run_cli(hello_world_agent_dir: Path) -> None:
     )
 
     assert result.exit_code == 0, result.stdout
+    assert "ChatResponse object at" not in result.stdout
+    assert result.stdout.strip()

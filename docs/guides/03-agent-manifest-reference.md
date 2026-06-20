@@ -57,14 +57,22 @@ spec:
       location: us-central1
     capabilities:
       mode: restricted # open | restricted | locked
+      enabledTools: [] # Optional builtin tool allowlist
+      disabledTools: [] # Optional builtin tool denylist
+      enableSubagents: true # Optional; defaults true when subagents are declared
 ```
 
-| Field               | Default       | Notes                                    |
-| ------------------- | ------------- | ---------------------------------------- |
-| `framework`         | `antigravity` | Constant in schema                       |
-| `model`             | SDK default   | Set explicitly for production agents     |
-| `vertex.enabled`    | `false`       | Enable for Vertex AI / Gemini Enterprise |
-| `capabilities.mode` | `restricted`  | Tightens tool and delegation behavior    |
+| Field                          | Default       | Notes                                       |
+| ------------------------------ | ------------- | ------------------------------------------- |
+| `framework`                    | `antigravity` | Constant in schema                          |
+| `model`                        | SDK default   | Set explicitly for production agents        |
+| `vertex.enabled`               | `false`       | Enable for Vertex AI / Gemini Enterprise    |
+| `capabilities.mode`            | `restricted`  | `open`, `restricted`, or `locked` preset    |
+| `capabilities.enabledTools`    | `[]`          | Builtin tools to expose (e.g. `search_web`) |
+| `capabilities.disabledTools`   | `[]`          | Builtin tools to hide from the agent        |
+| `capabilities.enableSubagents` | auto          | Set `true` when subagents are declared      |
+
+`locked` mode adds default `disabledTools` for `run_command`, `create_file`, and `edit_file` when explicit lists are omitted. Builtin tool names use snake_case identifiers such as `view_file`, `run_command`, and `search_web`.
 
 Minimal agents often leave `model` unset and keep `vertex.enabled: false` for local development.
 
@@ -169,13 +177,7 @@ deny:
 
 Policies compile to Antigravity SDK policy objects during `compile` and `run`.
 
-## spec.deployment
-
-Optional Agent Runtime settings: `target` (`agent-runtime` | `local`), `serviceAccount`, scaling (`minInstances`, `maxInstances`), `resourceLimits`, and `gateway` egress rules.
-
-```bash
-antigravity-agentkit deploy my-agent --project ID --location REGION --dry-run
-```
+Deployment settings (scaling, service account, target) live in **`deployment.yaml`**, not in `agent.yaml`. See [Packaging and deployment](09-packaging-and-deployment.md).
 
 ## spec.registry
 

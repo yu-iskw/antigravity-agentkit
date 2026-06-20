@@ -73,7 +73,7 @@
     },
     "AgentSpec": {
       "additionalProperties": false,
-      "description": "Agent behavioral, governance, and deployment specification.",
+      "description": "Agent behavioral and governance specification.",
       "properties": {
         "runtime": {
           "$ref": "#/$defs/RuntimeSpec"
@@ -121,17 +121,6 @@
           ],
           "default": null
         },
-        "deployment": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DeploymentSpec"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "registry": {
           "anyOf": [
             {
@@ -168,115 +157,35 @@
           "enum": ["open", "restricted", "locked"],
           "title": "Mode",
           "type": "string"
+        },
+        "enabledTools": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Enabledtools",
+          "type": "array"
+        },
+        "disabledTools": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Disabledtools",
+          "type": "array"
+        },
+        "enableSubagents": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enablesubagents"
         }
       },
       "title": "CapabilitiesConfig",
-      "type": "object"
-    },
-    "DeploymentSpec": {
-      "additionalProperties": false,
-      "description": "Agent Runtime deployment configuration.",
-      "properties": {
-        "target": {
-          "default": "agent-runtime",
-          "enum": ["agent-runtime", "local"],
-          "title": "Target",
-          "type": "string"
-        },
-        "displayName": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Displayname"
-        },
-        "serviceAccount": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Serviceaccount"
-        },
-        "minInstances": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Mininstances"
-        },
-        "maxInstances": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Maxinstances"
-        },
-        "resourceLimits": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ResourceLimits"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "containerConcurrency": {
-          "anyOf": [
-            {
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Containerconcurrency"
-        },
-        "labels": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Labels",
-          "type": "object"
-        },
-        "gateway": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/GatewayConfig"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "title": "DeploymentSpec",
       "type": "object"
     },
     "EvalsSpec": {
@@ -292,38 +201,6 @@
         }
       },
       "title": "EvalsSpec",
-      "type": "object"
-    },
-    "GatewayConfig": {
-      "additionalProperties": false,
-      "description": "Agent Gateway ingress/egress configuration.",
-      "properties": {
-        "enabled": {
-          "default": false,
-          "title": "Enabled",
-          "type": "boolean"
-        },
-        "egressPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Egresspolicy"
-        },
-        "requiredEndpoints": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Requiredendpoints",
-          "type": "array"
-        }
-      },
-      "title": "GatewayConfig",
       "type": "object"
     },
     "InstructionsSpec": {
@@ -471,38 +348,6 @@
         }
       },
       "title": "RegistrySpec",
-      "type": "object"
-    },
-    "ResourceLimits": {
-      "additionalProperties": false,
-      "description": "Container resource limits for deployment.",
-      "properties": {
-        "cpu": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cpu"
-        },
-        "memory": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Memory"
-        }
-      },
-      "title": "ResourceLimits",
       "type": "object"
     },
     "RuntimeSpec": {

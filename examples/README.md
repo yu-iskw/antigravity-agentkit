@@ -1,6 +1,6 @@
 # AgentKit examples
 
-Runnable example agents for learning and verification. Each example sets `spec.runtime.model` to **`gemini-3-flash-preview`** for lower cost.
+Runnable example agents for learning and verification. Each example sets `spec.runtime.model` to **`gemini-3.1-flash-lite`** for lower cost.
 
 ## Layout
 
@@ -19,6 +19,8 @@ Runnable example agents for learning and verification. Each example sets `spec.r
 - API key: set **`GEMINI_API_KEY`** or **`GOOGLE_API_KEY`**
 
 Validation and compile work without the SDK or API key. `run` requires both.
+
+Examples under `examples/` are **implement-only** (validate, compile, run, eval). They do not include `deployment.yaml` — ship commands (`package`, `deploy`, `register`) are for your own agent directories, not the bundled demos.
 
 ## Quick commands
 

@@ -1,20 +1,23 @@
 # Packaging and deployment
 
-This guide covers how AgentKit turns an agent directory into a deployable source package and how to configure Google Cloud Agent Runtime deployment. For the authoring layout, see [Your first agent](02-your-first-agent.md) and [Agent manifest reference](03-agent-manifest-reference.md). For validation before you ship, see [Validation and evals](08-validation-and-evals.md).
+This guide covers the **Ship** phase: turning an agent directory into a deployable source package and configuring Google Cloud Agent Platform deployment. Implement commands (`validate`, `compile`, `run`, `eval`) do not require `deployment.yaml`. Ship commands (`package`, `deploy`, `register`) do.
+
+For the authoring layout, see [Your first agent](02-your-first-agent.md) and [Agent manifest reference](03-agent-manifest-reference.md). For validation before you ship, see [Validation and evals](08-validation-and-evals.md).
 
 ## What `antigravity-agentkit package` produces
 
-The `package` command (and the Python API `AgentProject.package()`) builds a self-contained source bundle under `.build/<agent-name>/` by default. The build directory is recreated on each run.
+The `package` command (and `build_source_package()` in the Python API) builds a self-contained source bundle under `.build/<agent-name>/` by default. The build directory is recreated on each run. **`deployment.yaml` must exist`** in the agent directory.
 
 ```bash
-uv run antigravity-agentkit package examples/hello_world
-# Package built at .../examples/hello_world/.build/hello_world
+# From an agent directory that includes deployment.yaml (not the bundled examples/)
+uv run antigravity-agentkit package path/to/my-agent
+# Package built at .../path/to/my-agent/.build/<agent-name>
 ```
 
 You can override the output path:
 
 ```bash
-uv run antigravity-agentkit package examples/hello_world --output-dir /tmp/my-agent-build
+uv run antigravity-agentkit package path/to/my-agent --output-dir /tmp/my-agent-build
 ```
 
 ### Package contents
@@ -57,9 +60,35 @@ Agent Runtime expects this shape: `entrypoint_module` = `agent`, `entrypoint_obj
 
 Packaging runs `compile()` internally, so schema and governance checks must pass before the bundle is written. See [Python API](11-python-api.md) if you need programmatic control over the build.
 
-## Deployment configuration in `agent.yaml`
+## `deployment.yaml`
 
-Production settings live under `spec.deployment` in `agent.yaml`. They are merged into the Agent Runtime deployment config by `build_deployment_config()`.
+Production and platform settings live in **`deployment.yaml`** beside `agent.yaml`. They are merged into the Agent Platform deployment config by `build_deployment_config()`.
+
+```yaml
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: hello-world # must match agent metadata.name
+spec:
+  target: agent-platform
+  displayName: Hello World
+  serviceAccount: hello-world@my-project.iam.gserviceaccount.com
+  minInstances: 0
+  maxInstances: 5
+  containerConcurrency: 5
+  resourceLimits:
+    cpu: "2"
+    memory: 4Gi
+  labels:
+    owner: platform-team
+  gateway:
+    enabled: true
+    egressPolicy: restricted
+    requiredEndpoints:
+      - https://bigquery.googleapis.com
+```
+
+Model and Vertex backend settings stay in `agent.yaml` under `spec.runtime`:
 
 ```yaml
 spec:
@@ -70,24 +99,6 @@ spec:
       enabled: true
       project: my-agent-project
       location: us-central1
-
-  deployment:
-    target: agent-runtime # or local
-    displayName: Finance Analysis Agent
-    serviceAccount: finance-agent@my-agent-project.iam.gserviceaccount.com
-    minInstances: 0
-    maxInstances: 5
-    containerConcurrency: 5
-    resourceLimits:
-      cpu: "2"
-      memory: 4Gi
-    labels:
-      owner: finance-platform
-    gateway:
-      enabled: true
-      egressPolicy: restricted
-      requiredEndpoints:
-        - https://bigquery.googleapis.com
 ```
 
 ### Field reference
@@ -102,7 +113,7 @@ spec:
 | `labels`                         | Merged into top-level `labels`    | Combined with `managed-by: antigravity-agentkit` and `agent-name` |
 | `gateway`                        | `gateway`                         | Only included when `gateway.enabled` is true                      |
 
-Default deployment target is `agent-runtime`. Labels always include `managed-by: antigravity-agentkit` and `agent-name: <metadata.name>`.
+Default deployment target is `agent-platform`. Labels always include `managed-by: antigravity-agentkit` and `agent-name: <metadata.name>`.
 
 For gateway behavior on Agent Runtime, see [Google Cloud Agent Gateway documentation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy).
 
@@ -130,7 +141,7 @@ Keep Vertex project/location aligned with your Agent Runtime `--project` and `--
 ## Deploying with `antigravity-agentkit deploy`
 
 ```bash
-uv run antigravity-agentkit deploy examples/hello_world \
+uv run antigravity-agentkit deploy path/to/my-agent \
   --project my-gcp-project \
   --location us-central1
 ```
@@ -146,7 +157,7 @@ The deploy flow:
 Dry-run is the default when GCP application-default credentials are not detected. Force it explicitly:
 
 ```bash
-uv run antigravity-agentkit deploy examples/hello_world \
+uv run antigravity-agentkit deploy path/to/my-agent \
   --project my-gcp-project \
   --location us-central1 \
   --dry-run
@@ -155,7 +166,7 @@ uv run antigravity-agentkit deploy examples/hello_world \
 Custom output path:
 
 ```bash
-uv run antigravity-agentkit deploy examples/hello_world \
+uv run antigravity-agentkit deploy path/to/my-agent \
   --project my-gcp-project \
   --location us-central1 \
   --dry-run \

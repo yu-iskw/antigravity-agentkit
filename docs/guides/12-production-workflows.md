@@ -7,7 +7,7 @@ This guide walks through advanced scenarios teams use when running AgentKit in C
 Before any production deploy or registry publish, confirm:
 
 - [ ] `antigravity-agentkit validate <path> --level full --profile prod-readonly` (or stricter) passes
-- [ ] `spec.deployment.serviceAccount` is set and least-privilege
+- [ ] `deployment.yaml` `spec.serviceAccount` is set and least-privilege
 - [ ] `runtime.vertex.project` is set when `vertex.enabled: true`
 - [ ] MCP [admission policy](05-mcp-integration.md) allowlists only approved servers
 - [ ] [Policies](07-policies-and-governance.md) default-deny with explicit allows
@@ -119,17 +119,21 @@ flowchart LR
 
 Keep separate `agent.yaml` overlays or environment-specific branches only when necessary; prefer manifest fields (`deployment.labels`, Vertex `project`/`location`) that differ per environment via CI variables rather than forking agent logic.
 
-Example production deployment block (required for `prod-readonly`):
+Example production `deployment.yaml` (required for `prod-readonly` cloud checks):
 
 ```yaml
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: my-agent
 spec:
-  deployment:
-    serviceAccount: bq-agent@prod-agents.iam.gserviceaccount.com
-    minInstances: 1
-    maxInstances: 10
-    resourceLimits:
-      cpu: "2"
-      memory: 4Gi
+  target: agent-platform
+  serviceAccount: bq-agent@prod-agents.iam.gserviceaccount.com
+  minInstances: 1
+  maxInstances: 10
+  resourceLimits:
+    cpu: "2"
+    memory: 4Gi
 ```
 
 Details: [Validation and evals](08-validation-and-evals.md), [Packaging and deployment](09-packaging-and-deployment.md).
@@ -194,16 +198,18 @@ For a single CI script:
 import os
 
 from antigravity_agentkit import AgentProject, build_agent_registry_metadata, deploy
+from antigravity_agentkit.deploy import load_deployment
 
 agent_path = "agents/finance-analysis-agent"
 project_id = "prod-agents"
 location = "us-central1"
 
 project = AgentProject.load(agent_path)
+deployment = load_deployment(project.root)
 project.validate(production=True)
 
-deploy_result = deploy(project, project_id, location, dry_run=True)
-metadata = build_agent_registry_metadata(project)
+deploy_result = deploy(project, deployment, project_id, location, dry_run=True)
+metadata = build_agent_registry_metadata(project, deployment)
 metadata["gitSha"] = os.environ["GITHUB_SHA"]  # platform-specific
 metadata["packageDir"] = deploy_result["package_dir"]
 ```

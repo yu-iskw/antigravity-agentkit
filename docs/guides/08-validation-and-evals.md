@@ -8,13 +8,13 @@ This guide covers validation levels and profiles for `antigravity-agentkit valid
 
 `antigravity-agentkit validate` checks an agent directory at increasing depth. Levels are **cumulative**—each level includes all checks from lower levels.
 
-| Level      | Flag                       | What it checks                                                         |
-| ---------- | -------------------------- | ---------------------------------------------------------------------- |
-| `syntax`   | `--level syntax`           | Parse `agent.yaml`, `SYSTEM.md`, `mcp.json` JSON, `policies.yaml` YAML |
-| `schema`   | `--level schema` (default) | Skill frontmatter, subagent definitions, MCP schema, policies schema   |
-| `security` | `--level security`         | MCP security rules, production policy requirements, admission policy   |
-| `cloud`    | `--level cloud`            | Vertex config, `deployment.serviceAccount`, gateway warnings           |
-| `full`     | `--level full`             | All of the above (equivalent to `cloud` for current checks)            |
+| Level      | Flag                       | What it checks                                                           |
+| ---------- | -------------------------- | ------------------------------------------------------------------------ |
+| `syntax`   | `--level syntax`           | Parse `agent.yaml`, `SYSTEM.md`, `mcp.json` JSON, `policies.yaml` YAML   |
+| `schema`   | `--level schema` (default) | Skill frontmatter, subagent definitions, MCP schema, policies schema     |
+| `security` | `--level security`         | MCP security rules, production policy requirements, admission policy     |
+| `cloud`    | `--level cloud`            | Vertex config; `deployment.yaml` serviceAccount and gateway when present |
+| `full`     | `--level full`             | All of the above (equivalent to `cloud` for current checks)              |
 
 ```bash
 # Default: schema validation under dev-open profile
@@ -31,10 +31,8 @@ If validation fails, AgentKit prints diagnostics and exits with code 1:
 
 ```text
 ERROR AGK-CLOUD-002: Profile 'prod-readonly' requires deployment.serviceAccount
-  file: agent.yaml
-  path: $.spec.deployment.serviceAccount
-
-Validation passed.
+  file: deployment.yaml
+  path: $.spec.serviceAccount
 ```
 
 On success, the CLI prints `Validation passed.` and exits 0.

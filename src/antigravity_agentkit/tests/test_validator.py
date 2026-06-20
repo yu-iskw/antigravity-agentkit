@@ -73,9 +73,18 @@ def test_load_raises_for_invalid_mcp_json(tmp_path: Path) -> None:
         load_agent_directory(agent_dir)
 
 
-def test_prod_readonly_requires_service_account(mcp_agent_dir: Path) -> None:
-    """prod-readonly profile requires deployment.serviceAccount."""
+def test_prod_readonly_requires_deployment_file(mcp_agent_dir: Path) -> None:
+    """prod-readonly at cloud level requires deployment.yaml when absent."""
     project = AgentProject.load(mcp_agent_dir)
+    collector = validate_project(project.root, project.data, level="cloud", profile="prod-readonly")
+
+    assert collector.has_errors()
+    assert any(d.code == "AGK-DEPLOY-003" for d in collector.errors())
+
+
+def test_prod_readonly_requires_service_account(ship_agent_dir: Path) -> None:
+    """prod-readonly profile requires deployment.serviceAccount when deployment.yaml exists."""
+    project = AgentProject.load(ship_agent_dir)
     collector = validate_project(project.root, project.data, level="cloud", profile="prod-readonly")
 
     assert collector.has_errors()
@@ -104,7 +113,7 @@ def test_assert_valid_project_raises_on_errors(hello_world_agent_dir: Path) -> N
         assert_valid_project(
             project.root,
             project.data,
-            level="cloud",
+            level="security",
             profile="prod-readonly",
         )
 

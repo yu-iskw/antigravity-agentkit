@@ -185,4 +185,7 @@ CLAUDE.local.md
 codeql-results.sarif
 codeql-summary.txt
 
+# AgentKit build artifacts
+**/.build/
+
 node_modules/

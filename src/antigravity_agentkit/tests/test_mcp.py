@@ -32,6 +32,7 @@ def test_compile_mcp_servers_from_mcp_example(mcp_agent_dir: Path) -> None:
 
     assert len(servers) == 1
     assert servers[0]["name"] == "clock"
+    assert servers[0]["transport"] == "stdio"
     assert servers[0]["command"] == "python3"
     assert servers[0]["args"] == ["server/clock_mcp.py"]
 
@@ -168,3 +169,42 @@ def test_production_rejects_curl_wget() -> None:
 
     assert not dev_errors
     assert any("not allowed in production" in error for error in prod_errors)
+
+
+def test_compile_http_mcp_server() -> None:
+    """HTTP MCP servers compile with transport metadata."""
+    config = {
+        "mcpServers": {
+            "remote": {
+                "url": "https://example.com/mcp",
+                "headers": {"Authorization": "Bearer ${TOKEN}"},
+                "disabledTools": ["dangerous_tool"],
+            }
+        }
+    }
+    servers = compile_mcp_servers(parse_mcp_dict(config))
+
+    assert servers[0]["transport"] == "http"
+    assert servers[0]["url"] == "https://example.com/mcp"
+    assert servers[0]["disabledTools"] == ["dangerous_tool"]
+
+
+def test_rejects_mcp_server_without_transport() -> None:
+    """MCP server entries must declare url or command."""
+    with pytest.raises(Exception, match="url.*command"):
+        parse_mcp_dict({"mcpServers": {"broken": {"args": []}}})
+
+
+def test_rejects_mcp_server_with_both_transports() -> None:
+    """MCP server entries cannot declare both url and command."""
+    with pytest.raises(Exception, match="url.*command"):
+        parse_mcp_dict(
+            {
+                "mcpServers": {
+                    "broken": {
+                        "url": "https://example.com/mcp",
+                        "command": "python3",
+                    }
+                }
+            }
+        )

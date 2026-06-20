@@ -4,35 +4,63 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-class McpStdioServerConfig(BaseModel):
-    """Configuration for a single stdio MCP server."""
+class McpServerConfig(BaseModel):
+    """Configuration for a single MCP server (stdio or streamable HTTP)."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    command: str = Field(..., min_length=1)
+    command: str | None = None
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
     env_from_secret_manager: dict[str, str] = Field(
         default_factory=dict,
         alias="envFromSecretManager",
     )
+    url: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+    enabled_tools: list[str] = Field(default_factory=list, alias="enabledTools")
+    disabled_tools: list[str] = Field(default_factory=list, alias="disabledTools")
 
     @field_validator("command")
     @classmethod
-    def validate_command_not_blank(cls, value: str) -> str:
+    def validate_command_not_blank(cls, value: str | None) -> str | None:
         """Reject blank command strings."""
+        if value is None:
+            return None
         stripped = value.strip()
         if not stripped:
             msg = "MCP server command must not be blank."
             raise ValueError(msg)
         return stripped
 
+    @field_validator("url")
+    @classmethod
+    def validate_url_not_blank(cls, value: str | None) -> str | None:
+        """Reject blank URL strings."""
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            msg = "MCP server url must not be blank."
+            raise ValueError(msg)
+        return stripped
 
-# Backward-compatible alias used by compiler modules.
-McpServerConfig = McpStdioServerConfig
+    @model_validator(mode="after")
+    def validate_transport(self) -> McpServerConfig:
+        """Require exactly one of url (HTTP) or command (stdio)."""
+        has_url = bool(self.url)
+        has_command = bool(self.command)
+        if has_url == has_command:
+            msg = "MCP server must declare exactly one of 'url' or 'command'."
+            raise ValueError(msg)
+        return self
+
+
+# Backward-compatible alias used by older imports.
+McpStdioServerConfig = McpServerConfig
 
 
 class McpConfig(BaseModel):
@@ -40,7 +68,7 @@ class McpConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    mcp_servers: dict[str, McpStdioServerConfig] = Field(
+    mcp_servers: dict[str, McpServerConfig] = Field(
         default_factory=dict,
         alias="mcpServers",
     )
@@ -49,8 +77,8 @@ class McpConfig(BaseModel):
     @classmethod
     def validate_server_names(
         cls,
-        value: dict[str, McpStdioServerConfig],
-    ) -> dict[str, McpStdioServerConfig]:
+        value: dict[str, McpServerConfig],
+    ) -> dict[str, McpServerConfig]:
         """Reject blank MCP server names."""
         for name in value:
             if not name.strip():

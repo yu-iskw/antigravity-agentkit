@@ -11,6 +11,17 @@ if TYPE_CHECKING:
     from antigravity_agentkit.project import AgentProject
 
 
+async def chat_response_text(response: Any) -> str:
+    """Return aggregated assistant text from an SDK ``ChatResponse``."""
+    get_text = getattr(response, "text", None)
+    if get_text is None:
+        return str(response)
+    text = get_text()
+    if hasattr(text, "__await__"):
+        return await text
+    return str(text)
+
+
 class RuntimeAgent:
     """Thin wrapper around AgentProject.create_agent() for local chat."""
 
@@ -37,11 +48,19 @@ class RuntimeAgent:
             project.validate(production=True)
         return cls(project)
 
-    async def run_chat(self, prompt: str, *, production: bool = False) -> Any:
-        """Run a single chat turn against the compiled agent."""
-        agent = self._project.create_agent(production=production)
+    async def run_chat(
+        self,
+        prompt: str,
+        *,
+        production: bool = False,
+        interactive: bool = False,
+    ) -> str:
+        """Run a single chat turn and return aggregated assistant text."""
+        agent = self._project.create_agent(production=production, interactive=interactive)
         async with agent:
-            return await agent.chat(prompt)
+            response = await agent.chat(prompt)
+            # Drain before session exit; ChatResponse.text() hangs after __aexit__.
+            return await chat_response_text(response)
 
 
-__all__ = ["RuntimeAgent", "compile_sdk_policies"]
+__all__ = ["RuntimeAgent", "chat_response_text", "compile_sdk_policies"]
