@@ -2,6 +2,39 @@
 
 This guide walks through advanced scenarios teams use when running AgentKit in CI/CD and promoting agents from development to production. It ties together [validation](08-validation-and-evals.md), [packaging](09-packaging-and-deployment.md), [registry](10-registry-and-publishing.md), and the [Python API](11-python-api.md).
 
+For the boundary between AgentKit and Google Cloud Agent Platform, see [ADR 0003](../adr/0003-agent-platform-boundary.md).
+
+## Agent Platform handoff (CI contract factory)
+
+AgentKit produces artifacts; your platform pipeline applies them. AgentKit does **not** call Agent Runtime or Registry APIs in M2.
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant CI as CI
+    participant AK as antigravity_agentkit
+    participant Art as Artifacts
+    participant Plat as Agents_CLI_or_Platform_Team
+
+    Dev->>CI: Push agent repo
+    CI->>AK: validate --level full --profile prod-readonly
+    CI->>AK: eval
+    CI->>AK: package
+    CI->>AK: deploy --dry-run
+    CI->>AK: register
+    AK->>Art: .build/agent/, deployment-config.json, registry-metadata.json
+    CI->>Plat: Upload artifacts + apply deploy
+    Plat->>Plat: Agent Runtime + Gateway + Registry
+```
+
+Reference implementation in this repository:
+
+- **Fixture:** [`src/antigravity_agentkit/tests/fixtures/ship_agent/`](../../src/antigravity_agentkit/tests/fixtures/ship_agent/) (implement + `deployment.yaml`)
+- **Script:** [`dev/test_ship_agent.sh`](../../dev/test_ship_agent.sh)
+- **Workflow:** [`.github/workflows/agent_ship.yml`](../../.github/workflows/agent_ship.yml) — runs AgentKit steps and uploads `.build/` artifacts; platform apply is a documented placeholder for Agents CLI or GitOps.
+
+Set `AGK_GIT_SHA` (or rely on `GITHUB_SHA` in Actions) so `register` metadata includes provenance. Optional `AGK_PACKAGE_DIGEST` stamps the package digest when your pipeline computes one.
+
 ## Production checklist
 
 Before any production deploy or registry publish, confirm:
@@ -204,13 +237,14 @@ agent_path = "agents/finance-analysis-agent"
 project_id = "prod-agents"
 location = "us-central1"
 
+os.environ.setdefault("AGK_GIT_SHA", os.environ.get("GITHUB_SHA", ""))
+
 project = AgentProject.load(agent_path)
 deployment = load_deployment(project.root)
 project.validate(production=True)
 
 deploy_result = deploy(project, deployment, project_id, location, dry_run=True)
 metadata = build_agent_registry_metadata(project, deployment)
-metadata["gitSha"] = os.environ["GITHUB_SHA"]  # platform-specific
 metadata["packageDir"] = deploy_result["package_dir"]
 ```
 

@@ -1,0 +1,10 @@
+default: deny
+
+allow:
+  - tool: ask_question
+
+deny:
+  - tool: run_command
+  - tool: create_file
+  - tool: edit_file
+  - tool: delete_file

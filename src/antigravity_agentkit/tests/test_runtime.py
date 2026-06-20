@@ -58,14 +58,14 @@ class _SessionAgent:
     def __init__(self, response: _SessionBoundResponse) -> None:
         self._response = response
 
+    async def chat(self, _prompt: str) -> _SessionBoundResponse:
+        return self._response
+
     async def __aenter__(self) -> _SessionAgent:
         return self
 
     async def __aexit__(self, *_args: object) -> None:
         self._response.close_session()
-
-    async def chat(self, _prompt: str) -> _SessionBoundResponse:
-        return self._response
 
 
 def test_run_chat_drains_response_before_session_exit() -> None:

@@ -4,6 +4,47 @@ This guide covers the **Ship** phase: turning an agent directory into a deployab
 
 For the authoring layout, see [Your first agent](02-your-first-agent.md) and [Agent manifest reference](03-agent-manifest-reference.md). For validation before you ship, see [Validation and evals](08-validation-and-evals.md).
 
+## Agent Platform boundary
+
+AgentKit is a **compiler and artifact factory**, not an Agent Platform operator. See [ADR 0003: Agent Platform boundary](../adr/0003-agent-platform-boundary.md) for the full decision record.
+
+| Tier                   | AgentKit                                           | Platform team (Agents CLI / console)  |
+| ---------------------- | -------------------------------------------------- | ------------------------------------- |
+| **A — Compile**        | skills, subagents, MCP, policies → SDK             | —                                     |
+| **B — Emit contracts** | `deployment-config.json`, registry JSON, skill zip | Apply artifacts to Runtime / Registry |
+| **C — Bindings**       | _Deferred_ — memory, sessions, sandbox YAML        | Managed services at runtime           |
+| **D — Ops**            | —                                                  | Gateway IAM, Model Armor, online eval |
+
+Ship commands stop at Tier B. Live `deploy` without `--dry-run` raises `DeployError` until Agent Runtime apply is implemented deliberately in a later milestone.
+
+```mermaid
+flowchart TB
+    subgraph agentkit [antigravity-agentkit]
+        Validate[validate]
+        Package[package]
+        Emit["deploy --dry-run + register"]
+    end
+
+    subgraph artifacts [Artifacts]
+        Bundle[".build/agent/"]
+        DeployCfg[deployment-config.json]
+        RegMeta[registry-metadata.json]
+    end
+
+    subgraph platform [Platform team]
+        AgentsCLI[Agents CLI or GitOps]
+        Runtime[Agent Runtime]
+    end
+
+    Validate --> Package --> Bundle
+    Package --> Emit
+    Emit --> DeployCfg
+    Emit --> RegMeta
+    Bundle --> AgentsCLI
+    DeployCfg --> AgentsCLI
+    AgentsCLI --> Runtime
+```
+
 ## What `antigravity-agentkit package` produces
 
 The `package` command (and `build_source_package()` in the Python API) builds a self-contained source bundle under `.build/<agent-name>/` by default. The build directory is recreated on each run. **`deployment.yaml` must exist`** in the agent directory.
@@ -195,7 +236,7 @@ Deploy detects credentials via:
 2. `CLOUDSDK_AUTH_ACCESS_TOKEN` — short-lived access token.
 3. Application Default Credentials from `gcloud auth application-default login` or a GCE/GKE/Cloud Run metadata service.
 
-For local dry-run you do not need credentials. For future live deploy, use a **deployer** service account separate from the agent **runtime** `serviceAccount` in `agent.yaml`. See [Policies and governance](./07-policies-and-governance.md) and [Production workflows](./12-production-workflows.md).
+For local dry-run you do not need credentials. For future live deploy, use a **deployer** service account separate from the agent **runtime** `serviceAccount` in `deployment.yaml`. See [Policies and governance](./07-policies-and-governance.md) and [Production workflows](./12-production-workflows.md).
 
 ## Typical workflow
 

@@ -6,6 +6,10 @@ from pathlib import Path
 
 import pytest
 
+from antigravity_agentkit.deploy import load_deployment
+from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.schema.deployment import DeploymentManifest
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 HELLO_WORLD_DIR = REPO_ROOT / "examples" / "hello_world"
 SHIP_AGENT_DIR = Path(__file__).resolve().parent / "fixtures" / "ship_agent"
@@ -24,6 +28,27 @@ def repo_root() -> Path:
 def ship_agent_dir() -> Path:
     """Return the ship-agent test fixture (agent + deployment.yaml)."""
     return SHIP_AGENT_DIR
+
+
+@pytest.fixture
+def ship_project(ship_agent_dir: Path) -> AgentProject:
+    """Loaded ship-agent project."""
+    return AgentProject.load(ship_agent_dir)
+
+
+@pytest.fixture
+def ship_deployment(ship_agent_dir: Path) -> DeploymentManifest:
+    """Loaded ship-agent deployment manifest."""
+    return load_deployment(ship_agent_dir)
+
+
+@pytest.fixture
+def ship_context(
+    ship_project: AgentProject,
+    ship_deployment: DeploymentManifest,
+) -> tuple[AgentProject, DeploymentManifest]:
+    """Loaded ship-agent project and deployment manifest."""
+    return ship_project, ship_deployment
 
 
 @pytest.fixture

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,6 +18,28 @@ from antigravity_agentkit.skills import SKILL_FILENAME, load_skill_directory, va
 from antigravity_agentkit.subagents import compile_subagent_ir
 
 _MAX_SKILL_FILE_BYTES = 10 * 1024 * 1024
+PROVENANCE_ENV_GIT_SHA = "AGK_GIT_SHA"
+PROVENANCE_ENV_PACKAGE_DIGEST = "AGK_PACKAGE_DIGEST"
+
+
+def provenance_fields(
+    git_sha: str | None = None,
+    package_digest: str | None = None,
+) -> dict[str, str]:
+    """Map optional CI inputs to registry metadata provenance keys."""
+    provenance: dict[str, str] = {}
+    if git_sha:
+        provenance["gitSha"] = git_sha
+    if package_digest:
+        provenance["packageDigest"] = package_digest
+    return provenance
+
+
+def _provenance_from_env() -> dict[str, str]:
+    return provenance_fields(
+        os.environ.get(PROVENANCE_ENV_GIT_SHA),
+        os.environ.get(PROVENANCE_ENV_PACKAGE_DIGEST),
+    )
 
 
 def build_agent_registry_metadata(
@@ -51,7 +74,7 @@ def build_agent_registry_metadata(
     skills: list[str] = sorted(data.skills.keys())
     subagents = sorted(data.subagents.keys())
 
-    return {
+    metadata: dict[str, Any] = {
         "name": manifest.metadata.name,
         "displayName": manifest.metadata.display_name or manifest.metadata.name,
         "description": manifest.metadata.description,
@@ -76,6 +99,8 @@ def build_agent_registry_metadata(
         "sourceRoot": str(project.root),
         "generatedAt": datetime.now(UTC).isoformat(),
     }
+    metadata.update(_provenance_from_env())
+    return metadata
 
 
 def build_mcp_server_metadata(
@@ -115,28 +140,30 @@ def build_mcp_server_metadata(
     return servers
 
 
-def _validate_skill_package(skill_dir: Path) -> None:
-    """Validate a local skill package before publishing."""
-    skill_path = skill_dir / SKILL_FILENAME
-    if not skill_path.is_file():
-        raise RegistryError(f"Skill package missing {SKILL_FILENAME}: {skill_dir}")
-
-    skill = load_skill_directory(skill_dir)
-    validate_skill_name(skill.name)
-
-    for path in skill_dir.rglob("*"):
-        if path.is_symlink():
-            raise RegistryError(f"Symlinks are not allowed in skill packages: {path}")
-        if path.is_file() and path.stat().st_size > _MAX_SKILL_FILE_BYTES:
-            raise RegistryError(f"Skill file exceeds size limit: {path}")
-
-
 def _safe_zip_path(root: Path, file_path: Path) -> str:
     """Return a zip archive member path that rejects traversal."""
     rel = file_path.relative_to(root).as_posix()
     if rel.startswith("../") or "/../" in f"/{rel}/":
         raise RegistryError(f"Path traversal detected in skill package: {rel}")
     return rel
+
+
+def _iter_skill_files(skill_root: Path) -> list[Path]:
+    """Return sorted skill files after structural validation."""
+    skill_path = skill_root / SKILL_FILENAME
+    if not skill_path.is_file():
+        raise RegistryError(f"Skill package missing {SKILL_FILENAME}: {skill_root}")
+
+    files: list[Path] = []
+    for path in skill_root.rglob("*"):
+        if path.is_symlink():
+            raise RegistryError(f"Symlinks are not allowed in skill packages: {path}")
+        if not path.is_file():
+            continue
+        if path.stat().st_size > _MAX_SKILL_FILE_BYTES:
+            raise RegistryError(f"Skill file exceeds size limit: {path}")
+        files.append(path)
+    return sorted(files)
 
 
 def publish_skill(
@@ -151,8 +178,9 @@ def publish_skill(
     if not skill_root.is_dir():
         raise RegistryError(f"Skill directory not found: {skill_root}")
 
-    _validate_skill_package(skill_root)
     skill = load_skill_directory(skill_root)
+    validate_skill_name(skill.name)
+    skill_files = _iter_skill_files(skill_root)
 
     out_dir = Path(output_dir or skill_root.parent / ".build" / "skills")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -160,13 +188,12 @@ def publish_skill(
 
     hasher = hashlib.sha256()
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for file_path in sorted(skill_root.rglob("*")):
-            if not file_path.is_file():
-                continue
+        for file_path in skill_files:
             member = _safe_zip_path(skill_root, file_path)
-            archive.write(file_path, arcname=member)
+            payload = file_path.read_bytes()
+            archive.writestr(member, payload)
             hasher.update(member.encode("utf-8"))
-            hasher.update(file_path.read_bytes())
+            hasher.update(payload)
 
     return {
         "status": "packaged",

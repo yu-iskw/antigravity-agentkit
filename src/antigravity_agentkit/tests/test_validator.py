@@ -11,7 +11,12 @@ from antigravity_agentkit.exceptions import LoadError, ValidationError
 from antigravity_agentkit.loader import load_agent_directory
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.agent import McpAdmissionPolicy
-from antigravity_agentkit.validator import assert_valid_project, validate_project
+from antigravity_agentkit.schema.deployment import DeploymentManifest
+from antigravity_agentkit.validator import (
+    assert_valid_project,
+    validate_deployment,
+    validate_project,
+)
 
 
 def test_hello_agent_passes_schema_validation(hello_world_agent_dir: Path) -> None:
@@ -83,10 +88,14 @@ def test_prod_readonly_requires_deployment_file(mcp_agent_dir: Path) -> None:
     assert any(d.code == "AGK-DEPLOY-003" for d in collector.errors())
 
 
-def test_prod_readonly_requires_service_account(ship_agent_dir: Path) -> None:
+def test_prod_readonly_requires_service_account(
+    ship_deployment: DeploymentManifest, ship_project: AgentProject
+) -> None:
     """prod-readonly profile requires deployment.serviceAccount when deployment.yaml exists."""
-    project = AgentProject.load(ship_agent_dir)
-    collector = validate_project(project.root, project.data, level="cloud", profile="prod-readonly")
+    deployment = ship_deployment.model_copy(
+        update={"spec": ship_deployment.spec.model_copy(update={"service_account": None})}
+    )
+    collector = validate_deployment(ship_project.data, deployment, profile="prod-readonly")
 
     assert collector.has_errors()
     assert any(d.code == "AGK-CLOUD-002" for d in collector.errors())

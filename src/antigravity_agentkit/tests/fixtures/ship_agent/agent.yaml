@@ -12,3 +12,5 @@ spec:
       enabled: false
   instructions:
     system: SYSTEM.md
+  policies:
+    file: policies.yaml

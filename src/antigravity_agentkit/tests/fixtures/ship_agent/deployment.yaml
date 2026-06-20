@@ -5,5 +5,17 @@ metadata:
 spec:
   target: agent-platform
   displayName: Ship Agent
+  serviceAccount: ship-agent@test-project.iam.gserviceaccount.com
   minInstances: 0
   maxInstances: 1
+  containerConcurrency: 2
+  resourceLimits:
+    cpu: "1"
+    memory: 512Mi
+  labels:
+    env: test
+  gateway:
+    enabled: true
+    egressPolicy: restricted
+    requiredEndpoints:
+      - https://example.googleapis.com

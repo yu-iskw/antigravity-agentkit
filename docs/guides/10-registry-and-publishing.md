@@ -19,18 +19,20 @@ Without `--output`, metadata is printed to stdout as JSON.
 
 `build_agent_registry_metadata()` collects:
 
-| Field                                                                               | Source                              |
-| ----------------------------------------------------------------------------------- | ----------------------------------- |
-| `name`, `displayName`, `description`, `owner`, `labels`                             | `agent.yaml` metadata               |
-| `runtime.framework`, `runtime.vertexEnabled`, `runtime.project`, `runtime.location` | `spec.runtime`                      |
-| `deployment.target`, `deployment.serviceAccount`, `deployment.labels`               | `deployment.yaml`                   |
-| `mcpServers`                                                                        | Sorted server names from `mcp.json` |
-| `tools`                                                                             | Compiled tool names                 |
-| `skills`                                                                            | Local skill names                   |
-| `subagents`                                                                         | Subagent names                      |
-| `policyFile`                                                                        | Policies file path when declared    |
-| `sourceRoot`                                                                        | Absolute path to agent directory    |
-| `generatedAt`                                                                       | UTC timestamp                       |
+| Field                                                                               | Source                               |
+| ----------------------------------------------------------------------------------- | ------------------------------------ |
+| `name`, `displayName`, `description`, `owner`, `labels`                             | `agent.yaml` metadata                |
+| `runtime.framework`, `runtime.vertexEnabled`, `runtime.project`, `runtime.location` | `spec.runtime`                       |
+| `deployment.target`, `deployment.serviceAccount`, `deployment.labels`               | `deployment.yaml`                    |
+| `mcpServers`                                                                        | Sorted server names from `mcp.json`  |
+| `tools`                                                                             | Compiled tool names                  |
+| `skills`                                                                            | Local skill names                    |
+| `subagents`                                                                         | Subagent names                       |
+| `policyFile`                                                                        | Policies file path when declared     |
+| `sourceRoot`                                                                        | Absolute path to agent directory     |
+| `generatedAt`                                                                       | UTC timestamp                        |
+| `gitSha`                                                                            | When `AGK_GIT_SHA` env is set (CI)   |
+| `packageDigest`                                                                     | When `AGK_PACKAGE_DIGEST` env is set |
 
 The CLI adds a `registry` block:
 
@@ -57,11 +59,11 @@ The CLI adds a `registry` block:
 Stdio records include `command`, `args`, and `envKeys`. Streamable HTTP records instead
 include `url` and `headerKeys`; header values are never written to registry metadata.
 
-Use this file for governance inventory, dependency graphs, and audit trails. The [RFC](../rfcs/0001-declarative-antigravity-agentkit.md) describes additional fields (Git SHA, artifact digest, eval summary) that platforms may append in CI.
+Use this file for governance inventory, dependency graphs, and audit trails. In CI, set `AGK_GIT_SHA` and optionally `AGK_PACKAGE_DIGEST` before `register` to stamp provenance (see [Production workflows](12-production-workflows.md)).
 
-### Manifest registry hints
+### Manifest registry hints (intent only until M3)
 
-Optional `spec.registry` flags document intent for future automation:
+Optional `spec.registry` flags document **intent for CI and platform automation**. AgentKit does **not** call Agent Registry or Skill Registry APIs, resolve remote skill URIs at compile time, or auto-run `register` / `publish-skill` when these flags are true.
 
 ```yaml
 spec:
@@ -74,7 +76,14 @@ spec:
       register: true
 ```
 
-`register` does not read these flags yet; pass `--project` and `--location` on the CLI.
+Your pipeline should:
+
+1. Read these flags (or team conventions) to decide when to run `antigravity-agentkit register` or `publish-skill`.
+2. Upload emitted JSON/zip artifacts via Agents CLI or internal tooling.
+
+Similarly, `spec.skills.registry[]` and `spec.subagents[]` with `type: remote` are **schema placeholders** for M3 registry-backed resolution. Local markdown skills and subagents are fully supported today.
+
+`register` does not read `spec.registry` flags automatically; pass `--project` and `--location` on the CLI.
 
 ## Skill Registry: `antigravity-agentkit publish-skill`
 
