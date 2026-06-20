@@ -89,17 +89,29 @@ def build_mcp_server_metadata(
     config = parse_mcp_dict(data.mcp_config)
     servers: list[dict[str, Any]] = []
     for name, server in config.mcp_servers.items():
-        servers.append(
-            {
-                "name": name,
-                "transport": "stdio",
-                "command": server.command,
-                "args": list(server.args),
-                "envKeys": sorted(server.env.keys()),
-                "owner": project.manifest.metadata.owner,
-                "agentName": project.manifest.metadata.name,
-            }
-        )
+        metadata: dict[str, Any] = {
+            "name": name,
+            "owner": project.manifest.metadata.owner,
+            "agentName": project.manifest.metadata.name,
+        }
+        if server.url:
+            metadata.update(
+                {
+                    "transport": "http",
+                    "url": server.url,
+                    "headerKeys": sorted(server.headers),
+                }
+            )
+        else:
+            metadata.update(
+                {
+                    "transport": "stdio",
+                    "command": server.command,
+                    "args": list(server.args),
+                    "envKeys": sorted(server.env),
+                }
+            )
+        servers.append(metadata)
     return servers
 
 

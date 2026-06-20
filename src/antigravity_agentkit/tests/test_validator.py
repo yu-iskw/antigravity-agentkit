@@ -10,6 +10,7 @@ import pytest
 from antigravity_agentkit.exceptions import LoadError, ValidationError
 from antigravity_agentkit.loader import load_agent_directory
 from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.schema.agent import McpAdmissionPolicy
 from antigravity_agentkit.validator import assert_valid_project, validate_project
 
 
@@ -129,3 +130,38 @@ def test_dev_restricted_warns_on_missing_dangerous_tool_denies(hello_world_agent
     )
 
     assert not collector.has_errors()
+
+
+@pytest.mark.parametrize(
+    ("allowed_servers", "expected_error"),
+    [
+        (None, True),
+        ([], True),
+        (["unrelated"], True),
+        (["clock"], False),
+    ],
+)
+def test_restricted_profiles_enforce_mcp_admission_allowlist(
+    mcp_agent_dir: Path,
+    allowed_servers: list[str] | None,
+    expected_error: bool,
+) -> None:
+    """Missing, empty, and partial admission policies reject configured MCP servers."""
+    project = AgentProject.load(mcp_agent_dir)
+    mcp_spec = project.manifest.spec.mcp
+    assert mcp_spec is not None
+    mcp_spec.admission_policy = (
+        None
+        if allowed_servers is None
+        else McpAdmissionPolicy.model_validate({"allowedServers": allowed_servers})
+    )
+
+    collector = validate_project(
+        project.root,
+        project.data,
+        level="security",
+        profile="dev-restricted",
+    )
+
+    admission_errors = [item for item in collector.errors() if item.code == "AGK-MCP-005"]
+    assert bool(admission_errors) is expected_error

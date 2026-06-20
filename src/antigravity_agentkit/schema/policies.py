@@ -26,7 +26,7 @@ class PolicyRule(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     tool: str = Field(..., min_length=1)
-    when: PolicyWhen | dict[str, Any] | None = None
+    when: PolicyWhen | None = None
 
     @field_validator("tool")
     @classmethod

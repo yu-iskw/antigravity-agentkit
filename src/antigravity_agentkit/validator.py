@@ -205,9 +205,10 @@ def _validate_security(
 
     if manifest.spec.mcp and parsed_mcp is not None:
         admission = manifest.spec.mcp.admission_policy
-        if production and admission and admission.allowed_servers:
+        if production:
             configured = set(parsed_mcp.mcp_servers)
-            disallowed = configured - set(admission.allowed_servers)
+            allowed = set(admission.allowed_servers) if admission else set()
+            disallowed = configured - allowed
             if disallowed:
                 collector.add_error(
                     "AGK-MCP-005",

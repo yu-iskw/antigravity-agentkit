@@ -69,9 +69,7 @@ def _write_package_files(
     )
     (build_root / "agent.py").write_text(entrypoint, encoding="utf-8")
 
-    requirements = "antigravity-agentkit\n"
-    if manifest.spec.runtime.vertex.enabled:
-        requirements += "google-antigravity\n"
+    requirements = "antigravity-agentkit[antigravity]\n"
     (build_root / "requirements.txt").write_text(requirements, encoding="utf-8")
 
 

@@ -57,6 +57,9 @@ def test_build_source_package_writes_expected_files(ship_agent_dir: Path) -> Non
     assert (package_dir / "requirements.txt").is_file()
     assert (package_dir / "metadata.json").is_file()
     assert (package_dir / "agent.yaml").is_file()
+    assert (package_dir / "requirements.txt").read_text(encoding="utf-8") == (
+        "antigravity-agentkit[antigravity]\n"
+    )
 
 
 def test_build_deployment_config_uses_deployment_manifest(ship_agent_dir: Path) -> None:

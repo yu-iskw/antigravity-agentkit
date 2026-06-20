@@ -88,12 +88,24 @@ def test_compile_policy_dicts_includes_default_deny() -> None:
     )
 
 
-ECHO_LENGTH_APPROVAL_THRESHOLD = 100
+ESTIMATED_BYTES_APPROVAL_THRESHOLD = 10_000_000_000
 
 
-def test_compile_policy_dicts_ask_user_and_approval(mcp_agent_dir: Path) -> None:
+def test_compile_policy_dicts_ask_user_and_approval() -> None:
     """askUser and requireApproval rules compile with when clauses."""
-    doc = parse_policies_yaml(mcp_agent_dir / "policies.yaml")
+    doc = parse_policies_dict(
+        {
+            "askUser": [{"tool": "mcp.clock.echo", "when": {"risk": "medium"}}],
+            "requireApproval": [
+                {
+                    "tool": "mcp.bigquery.run_query",
+                    "when": {
+                        "estimatedBytesProcessedGt": ESTIMATED_BYTES_APPROVAL_THRESHOLD,
+                    },
+                }
+            ],
+        }
+    )
     compiled = compile_policy_dicts(doc)
 
     ask_user = next(item for item in compiled if item["decision"] == "ask_user")
@@ -101,4 +113,18 @@ def test_compile_policy_dicts_ask_user_and_approval(mcp_agent_dir: Path) -> None
     assert ask_user["when"]["risk"] == "medium"
 
     require_approval = next(item for item in compiled if item["decision"] == "require_approval")
-    assert require_approval["when"]["lengthGt"] == ECHO_LENGTH_APPROVAL_THRESHOLD
+    assert (
+        require_approval["when"]["estimatedBytesProcessedGt"] == ESTIMATED_BYTES_APPROVAL_THRESHOLD
+    )
+
+
+def test_rejects_unknown_policy_condition() -> None:
+    """Unknown when-clause operators must not bypass strict schema validation."""
+    with pytest.raises(ValidationError, match="lengthGt"):
+        parse_policies_dict(
+            {
+                "requireApproval": [
+                    {"tool": "mcp.clock.echo", "when": {"lengthGt": 100}},
+                ]
+            }
+        )

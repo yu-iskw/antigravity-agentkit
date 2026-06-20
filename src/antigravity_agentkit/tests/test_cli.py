@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -10,10 +9,6 @@ from typer.testing import CliRunner
 from antigravity_agentkit.cli import _print_plain, app
 
 runner = CliRunner()
-try:
-    _HAS_ANTIGRAVITY_SDK = importlib.util.find_spec("google.antigravity") is not None
-except ModuleNotFoundError:
-    _HAS_ANTIGRAVITY_SDK = False
 
 
 def test_cli_validate_hello_agent(hello_world_agent_dir: Path) -> None:
@@ -57,12 +52,7 @@ def test_cli_compile_hello_agent(hello_world_agent_dir: Path) -> None:
     """antigravity-agentkit compile emits compiled config summary."""
     result = runner.invoke(app, ["compile", str(hello_world_agent_dir)])
 
-    if _HAS_ANTIGRAVITY_SDK:
-        assert result.exit_code == 0, result.stdout
-    else:
-        assert result.exit_code == 1
-        assert "google-antigravity" in result.stdout
-
+    assert result.exit_code == 0, result.stdout
     assert "systemInstructionsLength" in result.stdout
     assert '"mcpServerCount": 0' in result.stdout
 
@@ -75,12 +65,7 @@ def test_cli_compile_mcp_agent(mcp_agent_dir: Path, tmp_path: Path) -> None:
         ["compile", str(mcp_agent_dir), "--output", str(output_file)],
     )
 
-    if _HAS_ANTIGRAVITY_SDK:
-        assert result.exit_code == 0, result.stdout
-    else:
-        assert result.exit_code == 1
-        assert "google-antigravity" in result.stdout
-
+    assert result.exit_code == 0, result.stdout
     assert output_file.is_file()
     content = output_file.read_text(encoding="utf-8")
     assert '"mcpServerCount": 1' in content

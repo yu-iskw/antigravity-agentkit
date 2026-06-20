@@ -9,7 +9,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from antigravity_agentkit.compiler import compile_agent_config, compile_to_sdk_config
+from antigravity_agentkit.compiler import compile_agent_config
 from antigravity_agentkit.deploy import (
     build_source_package,
     deploy,
@@ -167,7 +167,6 @@ def compile_cmd(
             console.print(f"[green]Wrote[/green] {output}")
         else:
             console.print_json(json.dumps(sdk_view))
-        compile_to_sdk_config(compiled)
     except AgentKitError as exc:
         _print_error(exc)
         raise typer.Exit(code=1) from exc

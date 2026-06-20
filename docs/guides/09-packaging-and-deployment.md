@@ -22,15 +22,15 @@ uv run antigravity-agentkit package path/to/my-agent --output-dir /tmp/my-agent-
 
 ### Package contents
 
-| File / directory                             | Purpose                                                                                         |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `agent.yaml`                                 | Copied manifest                                                                                 |
-| `SYSTEM.md` (or your configured system file) | Copied system instructions                                                                      |
-| `mcp.json`, `policies.yaml`                  | Copied when declared in the manifest                                                            |
-| `skills/`, `subagents/`                      | Copied local skill and subagent files                                                           |
-| `agent.py`                                   | Generated runtime entrypoint exposing `root_agent`                                              |
-| `requirements.txt`                           | Runtime dependencies (`antigravity-agentkit`, plus `google-antigravity` when Vertex is enabled) |
-| `metadata.json`                              | Build summary (agent name, compiled vertex/MCP/tool/policy counts)                              |
+| File / directory                             | Purpose                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------ |
+| `agent.yaml`                                 | Copied manifest                                                    |
+| `SYSTEM.md` (or your configured system file) | Copied system instructions                                         |
+| `mcp.json`, `policies.yaml`                  | Copied when declared in the manifest                               |
+| `skills/`, `subagents/`                      | Copied local skill and subagent files                              |
+| `agent.py`                                   | Generated runtime entrypoint exposing `root_agent`                 |
+| `requirements.txt`                           | Runtime dependency (`antigravity-agentkit[antigravity]`)           |
+| `metadata.json`                              | Build summary (agent name, compiled vertex/MCP/tool/policy counts) |
 
 The generated entrypoint loads the package directory and creates an Antigravity SDK agent:
 
@@ -132,7 +132,6 @@ spec:
 
 When `vertex.enabled` is true:
 
-- Packaging adds `google-antigravity` to `requirements.txt`.
 - Deployment config includes a `vertex` block with `project` and `location` (manifest values override CLI defaults when set).
 - Compiled runtime config passes Vertex project/location to the Antigravity SDK.
 

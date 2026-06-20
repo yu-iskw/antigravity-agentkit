@@ -54,6 +54,9 @@ The CLI adds a `registry` block:
 }
 ```
 
+Stdio records include `command`, `args`, and `envKeys`. Streamable HTTP records instead
+include `url` and `headerKeys`; header values are never written to registry metadata.
+
 Use this file for governance inventory, dependency graphs, and audit trails. The [RFC](../rfcs/0001-declarative-antigravity-agentkit.md) describes additional fields (Git SHA, artifact digest, eval summary) that platforms may append in CI.
 
 ### Manifest registry hints
