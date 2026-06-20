@@ -132,7 +132,35 @@ Optional files extend capability and governance:
   evals/*.yaml          # Smoke and regression evaluations
 ```
 
-See [Agent manifest reference](03-agent-manifest-reference.md) for every `agent.yaml` field.
+Not every optional file needs a line in `agent.yaml`. The manifest wires **identity, runtime, and governance**; standard `skills/` and `subagents/` directories are auto-discovered when unlisted.
+
+```mermaid
+flowchart LR
+  subgraph required [Required]
+    AgentYaml[agent.yaml]
+    SystemMd[SYSTEM.md]
+  end
+
+  subgraph governance [Manifest opt-in]
+    McpBlock[spec.mcp]
+    PoliciesBlock[spec.policies]
+    EvalsBlock[spec.evals.files]
+  end
+
+  subgraph discovered [Auto-discovered]
+    SkillsDir[skills/]
+    SubagentsDir[subagents/]
+  end
+
+  AgentYaml --> SystemMd
+  McpBlock --> McpJson[mcp.json]
+  PoliciesBlock --> PoliciesYaml[policies.yaml]
+  EvalsBlock --> EvalsDir[evals/]
+  SkillsDir -.-> AgentYaml
+  SubagentsDir -.-> AgentYaml
+```
+
+See [Agent manifest reference](03-agent-manifest-reference.md) for every `agent.yaml` field and the full manifest-vs-filesystem table.
 
 ## Architecture overview
 

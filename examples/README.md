@@ -4,13 +4,13 @@ Runnable example agents for learning and verification. Each example sets `spec.r
 
 ## Layout
 
-| Directory                            | Demonstrates                                                    |
-| ------------------------------------ | --------------------------------------------------------------- |
-| [`hello_world/`](hello_world/)       | Minimal `agent.yaml` + `SYSTEM.md`                              |
-| [`skills/`](skills/)                 | Local `SKILL.md` packages and `read_skill`                      |
-| [`subagents/`](subagents/)           | Markdown subagent delegation tools                              |
-| [`mcp/`](mcp/)                       | MCP server, policies, skills, subagents, and evals              |
-| [`agent_platform/`](agent_platform/) | Enterprise reference with `deployment.yaml` and ship dry-run CI |
+| Directory                            | Demonstrates                                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| [`hello_world/`](hello_world/)       | Minimal `agent.yaml` + `SYSTEM.md`                                                                  |
+| [`skills/`](skills/)                 | Local `SKILL.md` packages and `read_skill`                                                          |
+| [`subagents/`](subagents/)           | Markdown subagent delegation tools                                                                  |
+| [`mcp/`](mcp/)                       | MCP server, policies, skills, subagents, and evals (slim `agent.yaml`; skills/subagents discovered) |
+| [`agent_platform/`](agent_platform/) | Enterprise reference with `deployment.yaml` and ship dry-run CI                                     |
 
 ## Prerequisites
 
