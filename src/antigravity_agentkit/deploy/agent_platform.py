@@ -44,11 +44,7 @@ def build_deployment_config(
         "requirements_file": "requirements.txt",
         "display_name": display_name,
         "description": manifest.metadata.description or "",
-        "labels": {
-            _DEPLOY_LABEL: _DEPLOY_LABEL_VALUE,
-            "agent-name": manifest.metadata.name,
-            **manifest.metadata.labels,
-        },
+        "labels": dict(manifest.metadata.labels),
         "project": project_id,
         "location": location,
         "target": deploy_spec.target,
@@ -78,6 +74,12 @@ def build_deployment_config(
             config["resource_limits"] = limits
     if deploy_spec.labels:
         config["labels"].update(deploy_spec.labels)
+    config["labels"].update(
+        {
+            _DEPLOY_LABEL: _DEPLOY_LABEL_VALUE,
+            "agent-name": manifest.metadata.name,
+        }
+    )
     if deploy_spec.gateway and deploy_spec.gateway.enabled:
         config["gateway"] = deploy_spec.gateway.model_dump(by_alias=True, exclude_none=True)
 

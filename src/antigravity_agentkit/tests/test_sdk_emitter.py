@@ -39,9 +39,8 @@ def test_compile_to_sdk_config_includes_subagents_and_capabilities(
         pytest.skip("google-antigravity not installed")
 
     if getattr(types, "SubagentConfig", None) is None:
-        sdk_config = compile_to_sdk_config(compiled)
-        assert sdk_config.capabilities.enable_subagents is True
-        assert not getattr(sdk_config, "subagents", None)
+        with pytest.raises(CompilationError, match="does not support static subagents"):
+            compile_to_sdk_config(compiled)
         return
 
     sdk_config = compile_to_sdk_config(compiled)
@@ -94,6 +93,19 @@ def test_compile_to_sdk_config_emits_supported_subagents(subagents_agent_dir: Pa
     subagents = sdk_config["subagents"]
     assert isinstance(subagents, list)
     assert subagents[0].name == "proofreader"
+
+
+def test_compile_to_sdk_config_allows_explicitly_disabled_subagents(
+    subagents_agent_dir: Path,
+) -> None:
+    """Declared subagents do not require SDK support when explicitly disabled."""
+    compiled = compile_agent_config(subagents_agent_dir)
+    compiled.capabilities["enableSubagents"] = False
+
+    with patch("antigravity_agentkit.sdk.sdk_subagents_supported", return_value=False):
+        sdk_config = compile_to_sdk_config(compiled)
+
+    assert sdk_config.capabilities.enable_subagents is False
 
 
 def test_compile_to_sdk_config_http_mcp_server(hello_world_agent_dir: Path) -> None:

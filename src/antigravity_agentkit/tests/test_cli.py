@@ -5,11 +5,34 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
 from typer.testing import CliRunner
 
 from antigravity_agentkit.cli import _print_plain, app
+from antigravity_agentkit.schema.agent import AgentManifest
 
 runner = CliRunner()
+
+
+def test_cli_init_creates_valid_manifest(tmp_path: Path) -> None:
+    """init writes a schema-valid YAML manifest."""
+    result = runner.invoke(app, ["init", "valid-agent", "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.stdout
+    raw = yaml.safe_load((tmp_path / "valid-agent" / "agent.yaml").read_text(encoding="utf-8"))
+    manifest = AgentManifest.model_validate(raw)
+    assert manifest.metadata.name == "valid-agent"
+
+
+def test_cli_init_rejects_invalid_name_without_creating_directory(tmp_path: Path) -> None:
+    """init validates names before writing scaffold files."""
+    invalid_name = "Bad: Name"
+    result = runner.invoke(app, ["init", invalid_name, "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "Invalid agent name" in result.stdout
+    assert "Traceback" not in result.stdout
+    assert not (tmp_path / invalid_name).exists()
 
 
 def test_cli_validate_hello_agent(hello_world_agent_dir: Path) -> None:
@@ -36,6 +59,21 @@ def test_cli_validate_fails_for_missing_agent(tmp_path: Path) -> None:
     result = runner.invoke(app, ["validate", str(tmp_path / "missing-agent")])
 
     assert result.exit_code == 1
+    assert "Agent directory not found" in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+def test_cli_validate_reports_malformed_manifest_without_traceback(tmp_path: Path) -> None:
+    """Malformed agent YAML is reported as a concise CLI error."""
+    agent_dir = tmp_path / "broken-agent"
+    agent_dir.mkdir()
+    (agent_dir / "agent.yaml").write_text("metadata:\n  name: bad: value\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["validate", str(agent_dir)])
+
+    assert result.exit_code == 1
+    assert "Invalid YAML" in result.stdout
+    assert "Traceback" not in result.stdout
 
 
 def test_cli_validate_reports_invalid_mcp_schema(tmp_path: Path) -> None:

@@ -164,7 +164,12 @@ def compile_to_sdk_config_from_compiled(
     if capabilities is not None:
         kwargs["capabilities"] = capabilities
 
-    if compiled.capabilities.get("enableSubagents") and sdk_subagents_supported():
+    if compiled.capabilities.get("enableSubagents") and compiled.subagents:
+        if not sdk_subagents_supported():
+            raise CompilationError(
+                "The installed google-antigravity SDK does not support static subagents; "
+                "install a version that provides google.antigravity.types.SubagentConfig."
+            )
         sdk_subagents = try_compile_sdk_subagents(compiled.subagents)
         signature = inspect.signature(local_agent_config)
         parameters = signature.parameters.values()

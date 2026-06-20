@@ -7,6 +7,8 @@ from enum import Enum
 from pathlib import Path
 
 import typer
+import yaml
+from pydantic import ValidationError as PydanticValidationError
 from rich.console import Console
 
 from antigravity_agentkit.compiler import compile_agent_config
@@ -25,6 +27,7 @@ from antigravity_agentkit.registry import (
     publish_skill,
 )
 from antigravity_agentkit.runtime import RuntimeAgent
+from antigravity_agentkit.schema.agent import AgentManifest
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.validator import validate_deployment, validate_project
 
@@ -94,6 +97,26 @@ def init_agent(
     ),
 ) -> None:
     """Scaffold a minimal agent directory."""
+    display_name = name.replace("-", " ").title()
+    manifest_data = {
+        "apiVersion": "antigravity-agentkit.dev/v1alpha1",
+        "kind": "Agent",
+        "metadata": {
+            "name": name,
+            "displayName": display_name,
+            "description": "Minimal Antigravity AgentKit example.",
+        },
+        "spec": {
+            "runtime": {"framework": "antigravity", "vertex": {"enabled": False}},
+            "instructions": {"system": "SYSTEM.md"},
+        },
+    }
+    try:
+        AgentManifest.model_validate(manifest_data)
+    except PydanticValidationError as exc:
+        _print_error(ValidationError(f"Invalid agent name {name!r}: {exc}"))
+        raise typer.Exit(code=1) from exc
+
     parent = _resolve_path(output_dir or Path.cwd())
     agent_dir = parent / name
     if agent_dir.exists():
@@ -105,21 +128,10 @@ def init_agent(
         "# Role\n\nYou are a helpful agent.\n",
         encoding="utf-8",
     )
-    display_name = name.replace("-", " ").title()
-    manifest = (
-        "apiVersion: antigravity-agentkit.dev/v1alpha1\n"
-        "kind: Agent\n"
-        "metadata:\n"
-        f"  name: {name}\n"
-        f"  displayName: {display_name}\n"
-        "  description: Minimal Antigravity AgentKit example.\n"
-        "spec:\n"
-        "  runtime:\n"
-        "    framework: antigravity\n"
-        "    vertex:\n"
-        "      enabled: false\n"
-        "  instructions:\n"
-        "    system: SYSTEM.md\n"
+    manifest = yaml.safe_dump(
+        manifest_data,
+        sort_keys=False,
+        allow_unicode=False,
     )
     (agent_dir / "agent.yaml").write_text(manifest, encoding="utf-8")
     console.print(f"[green]Created agent at[/green] {agent_dir}")
@@ -132,18 +144,22 @@ def validate_cmd(
     profile: _ProfileChoice = typer.Option(_ProfileChoice.DEV_OPEN, "--profile", "-p"),
 ) -> None:
     """Validate agent manifest, security rules, and optional deployment.yaml."""
-    project = _load_project(path)
-    collector = validate_project(
-        project.root,
-        project.data,
-        level=level.value,  # type: ignore[arg-type]
-        profile=profile.value,  # type: ignore[arg-type]
-    )
-    if collector.diagnostics:
-        console.print(collector.format_all())
-    if collector.has_errors():
-        raise typer.Exit(code=1)
-    console.print("[green]Validation passed.[/green]")
+    try:
+        project = _load_project(path)
+        collector = validate_project(
+            project.root,
+            project.data,
+            level=level.value,  # type: ignore[arg-type]
+            profile=profile.value,  # type: ignore[arg-type]
+        )
+        if collector.diagnostics:
+            console.print(collector.format_all())
+        if collector.has_errors():
+            raise typer.Exit(code=1)
+        console.print("[green]Validation passed.[/green]")
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
 
 
 @app.command("compile")

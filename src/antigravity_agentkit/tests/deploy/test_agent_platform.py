@@ -111,6 +111,36 @@ def test_build_deployment_config_display_name_override(
     assert config["display_name"] == "Override Name"
 
 
+def test_build_deployment_config_preserves_reserved_labels(
+    ship_context: tuple[AgentProject, DeploymentManifest],
+) -> None:
+    """User labels cannot override AgentKit deployment identity labels."""
+    project, deployment = ship_context
+    project.manifest.metadata.labels.update(
+        {"managed-by": "manifest", "agent-name": "manifest", "shared": "manifest"}
+    )
+    overridden = deployment.model_copy(
+        update={
+            "spec": deployment.spec.model_copy(
+                update={
+                    "labels": {
+                        **deployment.spec.labels,
+                        "managed-by": "deployment",
+                        "agent-name": "deployment",
+                        "shared": "deployment",
+                    }
+                }
+            )
+        }
+    )
+
+    config = build_deployment_config(project, overridden, TEST_GCP_PROJECT, TEST_GCP_LOCATION)
+
+    assert config["labels"]["managed-by"] == "antigravity-agentkit"
+    assert config["labels"]["agent-name"] == "ship-agent"
+    assert config["labels"]["shared"] == "deployment"
+
+
 def test_build_deployment_config_omits_optional_fields(tmp_path: Path) -> None:
     """Minimal deployment spec omits optional scaling and gateway keys."""
     project = write_minimal_agent(tmp_path / "agent")

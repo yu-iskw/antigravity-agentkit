@@ -113,7 +113,7 @@ At runtime, calling `read_skill` with `{"name": "bigquery-analysis"}` returns th
 
 ## Subagents overview
 
-Subagents are specialized agents defined as markdown files with YAML frontmatter. They are declared in `agent.yaml`, compiled into the runtime configuration, and exposed to the Antigravity SDK via `capabilities.enableSubagents` plus an injected **Available Subagents** section in system instructions. When the installed SDK supports `SubagentConfig`, static subagent definitions are also passed directly to `LocalAgentConfig`.
+Subagents are specialized agents defined as markdown files with YAML frontmatter. They are declared in `agent.yaml`, compiled into the runtime configuration, and exposed to the Antigravity SDK via `capabilities.enableSubagents` and static `SubagentConfig` definitions. Runtime creation requires an SDK version that provides `SubagentConfig`; AgentKit raises a compilation error rather than silently dropping declared subagents when the installed SDK is incompatible.
 
 ```yaml
 spec:
