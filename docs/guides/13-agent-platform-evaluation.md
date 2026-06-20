@@ -96,30 +96,27 @@ uv run antigravity-agentkit deploy examples/agent_platform \
 
 Artifacts land under `.build/platform-assistant/` and `deployment-config.json`. The repository script [`dev/test_agent_platform.sh`](../../dev/test_agent_platform.sh) runs validate through register dry-run but stops before Platform evaluation.
 
-### Stage 3 — Post-deploy (Platform team)
+### Stage 3 — Post-deploy evaluation
 
-AgentKit does not implement these steps. Platform operators run them after Agent Runtime is live:
+After Agent Runtime is live:
 
-1. **Deploy** the bundle via [Agents CLI](https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/runtime) using the emitted `deployment-config.json`.
-2. **Enable GenAI OTEL** on the runtime ([offline eval prerequisites](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-offline)):
+1. **Enable GenAI OTEL** on the runtime ([offline eval prerequisites](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-offline)):
    - `OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental`
    - `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=EVENT_ONLY`
-3. **Regression / rapid eval:** console or SDK — `generate_conversation_scenarios` → `run_inference` → `evaluate` ([Evaluate your agents](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-agents)).
-4. **Production:** online monitors on sampled traces ([Continuous evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-online)).
-5. **Improve:** review results and run the optimizer loop ([Agent evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/agent-evaluation)).
-
-Seed Platform test cases manually from AgentKit `input` fields (for example, “What is the current UTC time?” from smoke evals) until an exporter exists.
+2. **Regression / rapid eval:** run `antigravity-agentkit eval --mode platform --project ... --location ... --resource-name ...`. AgentKit exports selected suites, runs inference against the deployed resource, and evaluates the returned dataset.
+3. **Production:** configure online monitors on sampled traces ([Continuous evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/evaluate-online)).
+4. **Improve:** review results and run the optimizer loop ([Agent evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/evaluation/agent-evaluation)).
 
 ## Eval schema relationship
 
-AgentKit `evals/*.yaml` and Platform eval datasets are **separate formats** today:
+AgentKit converts `evals/*.yaml` cases into the Platform inference/evaluation workflow:
 
 ```mermaid
 flowchart LR
     subgraph agentkitEval [AgentKit evals YAML]
         Input[input]
-        MustMention[mustMention]
-        Tools[tools allowed/denied]
+        Reference[referenceAnswer]
+        Metric[metric and threshold]
     end
 
     subgraph platformEval [Platform eval]
@@ -128,12 +125,14 @@ flowchart LR
         Metrics[autorater metrics]
     end
 
-    Input -.->|"manual seed today"| Scenarios
-    MustMention -.-x Metrics
-    Tools -.-x Traces
+    Input --> Scenarios
+    Reference --> Metrics
+    Metric --> Metrics
 ```
 
-AgentKit [`EvalCase`](../../src/antigravity_agentkit/schema/evals.py) supports `input`, `mustMention`, tool constraints, and regex patterns — not Platform reference answers or autorater metric names.
+Each case defaults to `general_quality_v1`. An explicit `threshold` fails the case when its score
+is lower; without a threshold, a valid score passes and SDK or metric errors fail. `--suite` filters
+the exported cases before any Platform request.
 
 ## What AgentKit does and does not do
 

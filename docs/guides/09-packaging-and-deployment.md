@@ -227,7 +227,7 @@ uv run antigravity-agentkit deploy examples/managed_agents_api \
   --dry-run
 ```
 
-`--project` and `--location` are ignored for `managed-agents-api` config content but remain required CLI flags. Live apply uses `deploy` with explicit `--no-wait` or implicit credentials for Agent Platform Runtime; Managed Agents API live deploy requires `dry_run=False` (pass no `--dry-run` and use explicit live intent via platform credentials + API key).
+`--project` and `--location` are ignored for `managed-agents-api` config content but remain required CLI flags. Agent Platform Runtime applies live when credentials are available. Managed Agents API live deploy requires `dry_run=False` through the Python API and API-key or ADC credentials.
 
 ```bash
 curl -X POST "https://generativelanguage.googleapis.com/v1beta/agents" \
@@ -287,7 +287,9 @@ Dry-run writes `deployment-config.json` (default: `.build/deployment-config.json
 
 The config includes `source_packages`, `platform_adapter` entrypoint metadata, `class_methods`, OTEL `env_vars`, identity fields, labels, scaling limits, gateway settings, and Vertex block when enabled.
 
-**Live deploy (M3):** With ADC configured, `deploy` calls `vertexai.Client().agent_engines.create`. Additional flags:
+**Live deploy (M3):** With ADC configured, `deploy` calls the public blocking
+`vertexai.Client().agent_engines.create` or `update` method. The command returns after the SDK
+operation completes. Additional flags:
 
 ```bash
 uv run antigravity-agentkit deploy examples/agent_platform \
@@ -303,6 +305,10 @@ uv run antigravity-agentkit rollback examples/agent_platform \
   --location "$GCP_LOCATION" \
   --to sha256:abc123
 ```
+
+Successful deployments are archived by package digest under
+`.build/.deploy/<agent>/revisions/`. The sibling `deploy-state.json` retains the current revision
+plus ten historical revisions, so rebuilding `.build/<agent>/` does not erase rollback state.
 
 ### Identity and observability (`deployment.yaml`)
 

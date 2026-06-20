@@ -63,7 +63,6 @@ def deploy(  # noqa: PLR0913
     output_path: str | Path | None = None,
     dry_run: bool | None = None,
     resource_name: str | None = None,
-    wait: bool = True,
     status_only: bool = False,
 ) -> dict[str, Any]:
     """Deploy or emit deployment artifacts for the manifest target."""
@@ -76,6 +75,5 @@ def deploy(  # noqa: PLR0913
         output_path=output_path,
         dry_run=dry_run,
         resource_name=resource_name,
-        wait=wait,
         status_only=status_only,
     )

@@ -130,7 +130,6 @@ def deploy(  # noqa: PLR0913
     output_path: str | Path | None = None,
     dry_run: bool | None = None,
     resource_name: str | None = None,
-    wait: bool = True,
     status_only: bool = False,
 ) -> dict[str, Any]:
     """Deploy agent to Agent Platform Runtime or write config in dry-run mode."""
@@ -191,7 +190,6 @@ def deploy(  # noqa: PLR0913
             project_id=project_id,
             location=location,
             resource_name=resource_name,
-            wait=wait,
             mcp_server_names=mcp_names,
         )
 

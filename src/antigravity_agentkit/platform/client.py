@@ -10,7 +10,7 @@ from antigravity_agentkit.exceptions import DeployError
 class AgentEngineClient(Protocol):
     """Minimal Agent Engine operations surface for testing without GCP."""
 
-    def create(self, *, config: dict[str, Any], wait: bool = True) -> dict[str, Any]:
+    def create(self, *, config: dict[str, Any]) -> dict[str, Any]:
         """Create a reasoning engine."""
         raise NotImplementedError
 
@@ -19,7 +19,6 @@ class AgentEngineClient(Protocol):
         *,
         name: str,
         config: dict[str, Any],
-        wait: bool = True,
     ) -> dict[str, Any]:
         """Update an existing reasoning engine."""
         raise NotImplementedError
@@ -48,10 +47,8 @@ class _VertexAgentEngineClient:
     def __init__(self, client: Any) -> None:
         self._client = client
 
-    def create(self, *, config: dict[str, Any], wait: bool = True) -> dict[str, Any]:
+    def create(self, *, config: dict[str, Any]) -> dict[str, Any]:
         remote = self._client.agent_engines.create(config=config)
-        if wait and hasattr(remote, "wait"):
-            remote.wait()
         return _remote_summary(remote)
 
     def update(
@@ -59,11 +56,8 @@ class _VertexAgentEngineClient:
         *,
         name: str,
         config: dict[str, Any],
-        wait: bool = True,
     ) -> dict[str, Any]:
         remote = self._client.agent_engines.update(name=name, config=config)
-        if wait and hasattr(remote, "wait"):
-            remote.wait()
         return _remote_summary(remote, name=name)
 
     def get(self, *, name: str) -> dict[str, Any]:

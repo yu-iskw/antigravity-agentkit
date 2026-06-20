@@ -13,7 +13,10 @@ from antigravity_agentkit.platform.client import (
     AgentEngineClient,
     create_vertex_agent_engine_client,
 )
-from antigravity_agentkit.platform.deploy_state import load_deploy_state, record_deploy
+from antigravity_agentkit.platform.deploy_state import (
+    archive_package_revision,
+    record_deploy,
+)
 from antigravity_agentkit.platform.iam import build_iam_hints_from_config
 from antigravity_agentkit.platform.runtime_adapter import (
     PLATFORM_CLASS_METHODS,
@@ -39,7 +42,7 @@ def package_digest(package_dir: Path) -> str:
     """Return sha256 digest of all files in a package directory."""
     digest = hashlib.sha256()
     for path in sorted(package_dir.rglob("*")):
-        if path.is_file() and path.name != "deploy-state.json":
+        if path.is_file():
             digest.update(path.relative_to(package_dir).as_posix().encode())
             digest.update(path.read_bytes())
     return f"sha256:{digest.hexdigest()}"
@@ -111,42 +114,49 @@ def create_or_update_agent_engine(  # noqa: PLR0913
     project_id: str,
     location: str,
     resource_name: str | None = None,
-    wait: bool = True,
     client: AgentEngineClient | None = None,
     mcp_server_names: list[str] | None = None,
+    state_package_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Create or update an Agent Runtime reasoning engine."""
-    api_config = build_agent_engine_api_config(deployment_config, package_dir)
+    canonical_package_dir = state_package_dir or package_dir
+    digest = package_digest_from_lockfile(package_dir) or package_digest(package_dir)
+    if state_package_dir is None:
+        hints = build_iam_hints_from_config(deployment_config, mcp_server_names=mcp_server_names)
+        write_iam_hints_sidecar(package_dir, hints)
+        archived_package_dir = archive_package_revision(
+            canonical_package_dir,
+            package_dir,
+            digest,
+        )
+    else:
+        archived_package_dir = package_dir
+    api_config = build_agent_engine_api_config(deployment_config, archived_package_dir)
     engine_client = client or create_vertex_agent_engine_client(project_id, location)
 
     if resource_name:
-        result = engine_client.update(name=resource_name, config=api_config, wait=wait)
+        result = engine_client.update(name=resource_name, config=api_config)
     else:
-        result = engine_client.create(config=api_config, wait=wait)
+        result = engine_client.create(config=api_config)
 
     resolved_name = result.get("resourceName") or resource_name or ""
     if not resolved_name:
         raise DeployError("Platform deploy did not return a resource name.")
 
-    digest = package_digest_from_lockfile(package_dir) or package_digest(package_dir)
     git_sha = os.environ.get(PROVENANCE_ENV_GIT_SHA)
-    previous = load_deploy_state(package_dir)
     state = record_deploy(
-        package_dir,
+        canonical_package_dir,
         resource_name=resolved_name,
         package_digest=digest,
         git_sha=git_sha,
-        previous=previous,
+        deployed_package_dir=archived_package_dir,
     )
-
-    hints = build_iam_hints_from_config(deployment_config, mcp_server_names=mcp_server_names)
-    write_iam_hints_sidecar(package_dir, hints)
 
     return {
         "status": "deployed",
         "resourceName": state.resource_name,
         "packageDigest": state.package_digest,
-        "packageDir": str(package_dir),
+        "packageDir": str(archived_package_dir),
         "deployedAt": state.deployed_at,
         "displayName": result.get("displayName", ""),
     }

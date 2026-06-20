@@ -21,7 +21,6 @@ def rollback_agent_engine(  # noqa: PLR0913
     project_id: str,
     location: str,
     target: str,
-    wait: bool = True,
     client: AgentEngineClient | None = None,
 ) -> dict[str, Any]:
     """Rollback to a prior deploy record using agent_engines.update."""
@@ -44,8 +43,8 @@ def rollback_agent_engine(  # noqa: PLR0913
         project_id=project_id,
         location=location,
         resource_name=resource_name,
-        wait=wait,
         client=client,
+        state_package_dir=package_dir,
     )
     result["status"] = "rolled_back"
     result["rollbackTarget"] = target

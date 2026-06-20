@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
+from antigravity_agentkit.evals import _suite_matches_filter
 from antigravity_agentkit.exceptions import EvalError
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.evals import EvalCase, EvalSuite
 
-EvalMode = Literal["mock", "live", "platform"]
+_DEFAULT_PLATFORM_METRIC = "general_quality_v1"
 
 
 def _export_case(suite_path: str, case: EvalCase) -> dict[str, Any]:
@@ -32,11 +34,16 @@ def _export_case(suite_path: str, case: EvalCase) -> dict[str, Any]:
     return exported
 
 
-def export_platform_dataset(project: AgentProject) -> dict[str, Any]:
+def export_platform_dataset(
+    project: AgentProject,
+    suite_filter: str | None = None,
+) -> dict[str, Any]:
     """Export AgentKit eval cases to a Platform-compatible dataset JSON."""
     cases: list[dict[str, Any]] = []
     for entry in project.data.evals:
         suite_path = str(entry.get("path", "unknown"))
+        if not _suite_matches_filter(suite_path, suite_filter):
+            continue
         raw = entry.get("raw", entry.get("suite", {}))
         suite = EvalSuite.from_dict(raw)
         for case in suite.cases:
@@ -58,11 +65,63 @@ def write_platform_dataset(project: AgentProject, output_path: Path) -> Path:
 
 
 def _serialize_eval_result(evaluation: Any) -> Any:
+    if hasattr(evaluation, "model_dump"):
+        return evaluation.model_dump(mode="json", exclude_none=True)
     if hasattr(evaluation, "to_dict"):
         return evaluation.to_dict()
     if isinstance(evaluation, dict):
         return evaluation
     return str(evaluation)
+
+
+def _metric_result(
+    case_result: dict[str, Any],
+    metric: str,
+) -> dict[str, Any] | None:
+    candidates = case_result.get("response_candidate_results") or []
+    if not candidates or not isinstance(candidates[0], dict):
+        return None
+    metric_results = candidates[0].get("metric_results") or {}
+    if not isinstance(metric_results, dict):
+        return None
+    selected = metric_results.get(metric)
+    if isinstance(selected, dict):
+        return selected
+    return None
+
+
+def _case_summary(
+    case: dict[str, Any],
+    result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    metric = str(case.get("metric") or _DEFAULT_PLATFORM_METRIC)
+    threshold = case.get("threshold")
+    failures: list[str] = []
+    metric_result = _metric_result(result or {}, metric)
+    score: float | None = None
+    if metric_result is None:
+        failures.append(f"Platform evaluation returned no result for metric {metric!r}.")
+    else:
+        error_message = metric_result.get("error_message")
+        raw_score = metric_result.get("score")
+        if error_message:
+            failures.append(f"Platform evaluation error: {error_message}")
+        elif isinstance(raw_score, (int, float)) and not isinstance(raw_score, bool):
+            score = float(raw_score)
+        else:
+            failures.append(f"Platform evaluation returned no score for metric {metric!r}.")
+        if score is not None and threshold is not None and score < float(threshold):
+            failures.append(f"Metric {metric!r} score {score:g} is below threshold {threshold}.")
+
+    return {
+        "name": str(case["name"]),
+        "suitePath": str(case["suitePath"]),
+        "metric": metric,
+        "score": score,
+        "threshold": threshold,
+        "passed": not failures,
+        "failures": failures,
+    }
 
 
 def run_platform_eval_suite(
@@ -71,7 +130,6 @@ def run_platform_eval_suite(
     project_id: str,
     location: str,
     resource_name: str,
-    metric: str = "general_quality",
 ) -> dict[str, Any]:
     """Run Platform eval inference + grading against a deployed agent."""
     try:
@@ -84,27 +142,72 @@ def run_platform_eval_suite(
     client = vertexai.Client(project=project_id, location=location)
     evals_api = client.evals
 
-    scenarios = [
-        {"prompt": case["prompt"], "name": case["name"]} for case in dataset.get("cases", [])
-    ]
-    if not scenarios:
+    cases = dataset.get("cases", [])
+    if not cases:
         raise EvalError("Platform eval dataset has no cases.")
 
+    try:
+        pandas = importlib.import_module("pandas")
+    except ImportError as exc:
+        raise EvalError(
+            "Platform eval requires the [gcp] evaluation dependencies: "
+            "pip install 'antigravity-agentkit[gcp]'"
+        ) from exc
+
+    rows: list[dict[str, Any]] = []
+    metrics: list[str] = []
+    for case in cases:
+        row = {"prompt": case["prompt"]}
+        if case.get("referenceAnswer"):
+            row["reference"] = case["referenceAnswer"]
+        rows.append(row)
+        metric = str(case.get("metric") or _DEFAULT_PLATFORM_METRIC)
+        if metric not in metrics:
+            metrics.append(metric)
+
     inference = evals_api.run_inference(
-        agent_resource=resource_name,
-        scenarios=scenarios,
+        src=pandas.DataFrame(rows),
+        agent=resource_name,
     )
     evaluation = evals_api.evaluate(
-        inference_results=inference,
-        metrics=[metric],
+        dataset=inference,
+        metrics=[{"name": metric} for metric in metrics],
     )
+    serialized = _serialize_eval_result(evaluation)
+    if not isinstance(serialized, dict):
+        raise EvalError("Platform evaluation returned an unsupported result payload.")
+    raw_case_results = serialized.get("eval_case_results") or []
+    case_results = [
+        _case_summary(
+            case,
+            raw_case_results[index]
+            if index < len(raw_case_results) and isinstance(raw_case_results[index], dict)
+            else None,
+        )
+        for index, case in enumerate(cases)
+    ]
     return {
         "status": "completed",
-        "metric": metric,
+        "metrics": metrics,
         "resourceName": resource_name,
-        "caseCount": len(scenarios),
-        "results": _serialize_eval_result(evaluation),
+        "caseCount": len(cases),
+        "caseResults": case_results,
+        "results": serialized,
     }
+
+
+def _case_count(payload: dict[str, Any]) -> int:
+    if "caseResults" in payload:
+        return len(payload["caseResults"])
+    if "eval_case_results" in payload:
+        return len(payload["eval_case_results"])
+    cases = payload.get("cases")
+    if isinstance(cases, list):
+        return len(cases)
+    results = payload.get("results")
+    if isinstance(results, list):
+        return len(results)
+    return 0
 
 
 def compare_eval_results(baseline_path: Path, candidate_path: Path) -> dict[str, Any]:
@@ -114,7 +217,7 @@ def compare_eval_results(baseline_path: Path, candidate_path: Path) -> dict[str,
     return {
         "baseline": baseline_path.name,
         "candidate": candidate_path.name,
-        "baselineCaseCount": len(baseline.get("cases", baseline.get("results", []))),
-        "candidateCaseCount": len(candidate.get("cases", candidate.get("results", []))),
+        "baselineCaseCount": _case_count(baseline),
+        "candidateCaseCount": _case_count(candidate),
         "changed": baseline != candidate,
     }

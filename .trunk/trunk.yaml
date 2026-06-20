@@ -22,6 +22,7 @@ lint:
       paths:
         - docs/rfcs/**
   disabled:
+    - sourcery
     - checkov
     - trufflehog
     - isort

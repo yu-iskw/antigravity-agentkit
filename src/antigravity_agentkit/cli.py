@@ -381,9 +381,6 @@ def deploy_cmd(  # noqa: PLR0913
     location: str = typer.Option(..., "--location", "-l"),
     output: Path | None = typer.Option(None, "--output", "-o", help="Dry-run config output path."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Force dry-run mode."),
-    no_wait: bool = typer.Option(
-        False, "--no-wait", help="Return before deploy operation completes."
-    ),
     status: bool = typer.Option(
         False, "--status", help="Show deploy state and live runtime status."
     ),
@@ -396,13 +393,7 @@ def deploy_cmd(  # noqa: PLR0913
     """[Ship] Deploy or emit deployment artifacts (requires deployment.yaml)."""
     try:
         agent_project, deployment = _load_ship_context(path)
-        resolved_dry_run: bool | None
-        if dry_run or status:
-            resolved_dry_run = True
-        elif no_wait:
-            resolved_dry_run = False
-        else:
-            resolved_dry_run = None
+        resolved_dry_run: bool | None = True if dry_run or status else None
 
         summary = deploy(
             agent_project,
@@ -410,9 +401,8 @@ def deploy_cmd(  # noqa: PLR0913
             project_id,
             location,
             output_path=output,
-            dry_run=resolved_dry_run if not status else True,
+            dry_run=resolved_dry_run,
             resource_name=resource_name,
-            wait=not no_wait,
             status_only=status,
         )
         console.print_json(json.dumps(summary, indent=2))
@@ -429,7 +419,6 @@ def rollback_cmd(
     to: str = typer.Option(
         ..., "--to", help="Rollback target: package digest, git SHA, or history index."
     ),
-    no_wait: bool = typer.Option(False, "--no-wait", help="Return before rollback completes."),
 ) -> None:
     """[Ship] Roll back a deployed agent to a prior package revision."""
     from antigravity_agentkit.deploy import build_deployment_config
@@ -445,7 +434,6 @@ def rollback_cmd(
             project_id=project_id,
             location=location,
             target=to,
-            wait=not no_wait,
         )
         console.print_json(json.dumps(summary, indent=2))
     except AgentKitError as exc:

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from antigravity_agentkit.compiler import compile_agent_ir
 from antigravity_agentkit.exceptions import RegistryError
@@ -166,3 +168,115 @@ def test_publish_skill_repeat_is_stable(skills_agent_dir: Path, tmp_path: Path) 
     assert first["sha256"] == second["sha256"]
     with zipfile.ZipFile(second["archivePath"]) as archive:
         assert sorted(archive.namelist()) == sorted(["SKILL.md", "scripts/greet.sh"])
+
+
+def test_publish_skill_write_lock_requires_live(
+    skills_agent_dir: Path,
+    tmp_path: Path,
+) -> None:
+    """Local packaging cannot create a purported immutable registry pin."""
+    skill_dir = skills_agent_dir / "skills" / "greeting-helper"
+
+    with pytest.raises(RegistryError, match="requires --live"):
+        publish_skill(skill_dir, output_dir=tmp_path, write_lock=True)
+
+
+def test_publish_skill_merges_live_revision_locks(
+    skills_agent_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Live lock writes preserve other skills and pin immutable revisions."""
+    agent_root = tmp_path / "agent"
+    shutil.copytree(skills_agent_dir, agent_root)
+    second_skill = agent_root / "skills" / "farewell-helper"
+    second_skill.mkdir()
+    (second_skill / "SKILL.md").write_text(
+        "---\nname: farewell-helper\ndescription: Say goodbye.\nlicense: Apache-2.0\n---\n\n# Farewell\n",
+        encoding="utf-8",
+    )
+
+    publish_counts: dict[str, int] = {}
+
+    def fake_publish_skill_live(**kwargs: object) -> dict[str, object]:
+        skill_name = str(kwargs["skill_name"])
+        publish_counts[skill_name] = publish_counts.get(skill_name, 0) + 1
+        registry_name = (
+            f"projects/{TEST_GCP_PROJECT}/locations/{TEST_GCP_LOCATION}/skills/{skill_name}"
+        )
+        return {
+            "status": "published",
+            "registryRef": registry_name,
+            "revision": f"{registry_name}/revisions/rev-{publish_counts[skill_name]}",
+            "sha256": kwargs["sha256"],
+        }
+
+    monkeypatch.setattr(
+        "antigravity_agentkit.platform.registry.publish_skill_live",
+        fake_publish_skill_live,
+    )
+    for skill_name in ("greeting-helper", "farewell-helper"):
+        publish_skill(
+            agent_root / "skills" / skill_name,
+            output_dir=tmp_path / "archives",
+            project=TEST_GCP_PROJECT,
+            location=TEST_GCP_LOCATION,
+            live=True,
+            write_lock=True,
+        )
+    publish_skill(
+        agent_root / "skills" / "greeting-helper",
+        output_dir=tmp_path / "archives",
+        project=TEST_GCP_PROJECT,
+        location=TEST_GCP_LOCATION,
+        live=True,
+        write_lock=True,
+    )
+
+    lock = yaml.safe_load((agent_root / "skills.lock").read_text(encoding="utf-8"))
+    assert lock["version"] == 1
+    assert [entry["name"] for entry in lock["skills"]] == [
+        "farewell-helper",
+        "greeting-helper",
+    ]
+    revisions = {entry["name"]: entry["revision"] for entry in lock["skills"]}
+    assert revisions["farewell-helper"].endswith("/revisions/rev-1")
+    assert revisions["greeting-helper"].endswith("/revisions/rev-2")
+    assert all(entry["sha256"].startswith("sha256:") for entry in lock["skills"])
+
+
+def test_publish_skill_does_not_overwrite_malformed_lock(
+    skills_agent_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed existing lock data is preserved for manual recovery."""
+    agent_root = tmp_path / "agent"
+    shutil.copytree(skills_agent_dir, agent_root)
+    lock_path = agent_root / "skills.lock"
+    original = "version: 2\nskills: []\n"
+    lock_path.write_text(original, encoding="utf-8")
+    registry_name = (
+        f"projects/{TEST_GCP_PROJECT}/locations/{TEST_GCP_LOCATION}/skills/greeting-helper"
+    )
+    monkeypatch.setattr(
+        "antigravity_agentkit.platform.registry.publish_skill_live",
+        lambda **kwargs: {
+            "status": "published",
+            "registryRef": registry_name,
+            "revision": f"{registry_name}/revisions/rev-1",
+            "sha256": kwargs["sha256"],
+        },
+    )
+
+    with pytest.raises(RegistryError, match="version: 1"):
+        publish_skill(
+            agent_root / "skills" / "greeting-helper",
+            output_dir=tmp_path / "archives",
+            project=TEST_GCP_PROJECT,
+            location=TEST_GCP_LOCATION,
+            live=True,
+            write_lock=True,
+        )
+
+    assert lock_path.read_text(encoding="utf-8") == original

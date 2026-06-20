@@ -239,14 +239,12 @@ def test_deploy_live_uses_agent_engine_client(
     class FakeClient:
         """Stub Agent Engine client for live deploy tests."""
 
-        def create(self, *, config: dict[str, object], wait: bool = True) -> dict[str, str]:
+        def create(self, *, config: dict[str, object]) -> dict[str, str]:
             calls["config"] = config
-            calls["wait"] = wait
             return {"resourceName": "projects/demo/locations/us-central1/reasoningEngines/1"}
 
-        def update(
-            self, *, _name: str, _config: dict[str, object], _wait: bool = True
-        ) -> dict[str, str]:
+        def update(self, *, name: str, config: dict[str, object]) -> dict[str, str]:
+            del name, config
             raise AssertionError("update should not be called")
 
         def get(self, *, name: str) -> dict[str, str]:

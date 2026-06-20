@@ -92,11 +92,10 @@ def deploy(  # noqa: PLR0913
     output_path: str | Path | None = None,
     dry_run: bool | None = None,
     resource_name: str | None = None,
-    wait: bool = True,
     status_only: bool = False,
 ) -> dict[str, Any]:
     """Emit Managed Agents API registration contract or apply live."""
-    del resource_name, wait, status_only
+    del resource_name, status_only
     ir = project.compile()
     context = DeployContext(
         project_id=project_id,

@@ -72,7 +72,10 @@ dependencies = [
 antigravity-agentkit = "antigravity_agentkit.cli:main"
 [project.optional-dependencies]
 antigravity = ["google-antigravity>=0.1.4"]
-gcp = ["google-auth>=2", "google-cloud-aiplatform[agent_engines]>=1.144"]
+gcp = [
+  "google-auth>=2",
+  "google-cloud-aiplatform[agent_engines,evaluation]>=1.144",
+]
 all = ["antigravity-agentkit[antigravity,gcp]"]
 
 [tool.pytest.ini_options]

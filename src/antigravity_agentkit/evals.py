@@ -229,25 +229,31 @@ def run_evals(  # noqa: PLR0913
             run_platform_eval_suite,
         )
 
-        dataset = export_platform_dataset(project)
+        dataset = export_platform_dataset(project, suite_filter=suite_filter)
+        if not dataset["cases"]:
+            if suite_filter and project.data.evals:
+                raise EvalError(f"No eval suites matched filter: {suite_filter!r}")
+            return EvalRunResult()
         platform_result = run_platform_eval_suite(
             dataset,
             project_id=project_id,
             location=location,
             resource_name=resource_name,
         )
-        result = EvalRunResult(total=1, passed=1 if platform_result["status"] == "completed" else 0)
-        if platform_result["status"] != "completed":
-            result.failed = 1
-            result.passed = 0
-            result.cases.append(
-                EvalCaseResult(
-                    name="platform-suite",
-                    suite_path="platform",
-                    passed=False,
-                    failures=[str(platform_result)],
-                )
+        result = EvalRunResult()
+        for case in platform_result["caseResults"]:
+            case_result = EvalCaseResult(
+                name=str(case["name"]),
+                suite_path=str(case["suitePath"]),
+                passed=bool(case["passed"]),
+                failures=[str(failure) for failure in case["failures"]],
             )
+            result.cases.append(case_result)
+            result.total += 1
+            if case_result.passed:
+                result.passed += 1
+            else:
+                result.failed += 1
         return result
 
     result = EvalRunResult()

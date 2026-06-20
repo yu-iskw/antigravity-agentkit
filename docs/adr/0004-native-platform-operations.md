@@ -14,15 +14,15 @@ Agents CLI remains the reference lifecycle implementation; antigravity-agentkit 
 
 **M3 brings Tier D into antigravity-agentkit** via native `vertexai` / `google-cloud-aiplatform` SDK clients—not subprocess bridges to Agents CLI.
 
-| Capability         | M3 approach                                                               |
-| ------------------ | ------------------------------------------------------------------------- |
-| Live deploy        | `vertexai.Client().agent_engines.create/update` from IR source packages   |
-| IAM / identity     | `deployment.yaml` `spec.identity` → `identity_type` + `service_account`   |
-| Observability      | `spec.observability` → `env_vars` on deploy config (OTEL, BQ hints)       |
-| Register / publish | Regional Agent Registry + Skill Registry REST/SDK apply                   |
-| Gemini Enterprise  | Catalog publish after registry + deploy (`publish` command)               |
-| Platform eval      | `client.evals` + `eval export` from AgentKit YAML                         |
-| Rollback           | `deploy-state.json` history + `agent_engines.update` / `rollback` command |
+| Capability         | M3 approach                                                                    |
+| ------------------ | ------------------------------------------------------------------------------ |
+| Live deploy        | `vertexai.Client().agent_engines.create/update` from IR source packages        |
+| IAM / identity     | `deployment.yaml` `spec.identity` → `identity_type` + `service_account`        |
+| Observability      | `spec.observability` → `env_vars` on deploy config (OTEL, BQ hints)            |
+| Register / publish | Regional Agent Registry + Skill Registry REST/SDK apply                        |
+| Gemini Enterprise  | Catalog publish after registry + deploy (`publish` command)                    |
+| Platform eval      | `client.evals` + `eval export` from AgentKit YAML                              |
+| Rollback           | `.build/.deploy/<agent>/` state + immutable revisions + `agent_engines.update` |
 
 **Still platform-team owned (not in AgentKit):**
 
@@ -49,6 +49,7 @@ Tier A/B behavior is unchanged. Mock eval remains the default CI path.
 - Pre-GA API drift requires pinned `google-cloud-aiplatform[agent_engines]` and integration tests.
 - 8MB `source_packages` Platform limit requires package size validation.
 - Antigravity SDK agents need a Platform runtime adapter (`platform_adapter.py`) with explicit `class_methods`.
+- Public Agent Engine create/update calls are blocking; AgentKit does not wrap private operation APIs.
 
 ## References
 
