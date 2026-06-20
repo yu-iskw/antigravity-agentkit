@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "PolicyRule": {
+      "additionalProperties": false,
+      "description": "A single tool policy rule.",
+      "properties": {
+        "tool": {
+          "minLength": 1,
+          "title": "Tool",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PolicyWhen"
+            },
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": ["tool"],
+      "title": "PolicyRule",
+      "type": "object"
+    },
+    "PolicyWhen": {
+      "additionalProperties": false,
+      "description": "Conditional clause for ask-user or approval policies.",
+      "properties": {
+        "risk": {
+          "anyOf": [
+            {
+              "enum": ["low", "medium", "high"],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Risk"
+        },
+        "estimatedBytesProcessedGt": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimatedbytesprocessedgt"
+        }
+      },
+      "title": "PolicyWhen",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Tool, MCP, and risk policies from policies.yaml.",
+  "properties": {
+    "default": {
+      "enum": ["allow", "deny"],
+      "type": "string",
+      "default": "deny",
+      "title": "Default"
+    },
+    "allow": {
+      "items": {
+        "$ref": "#/$defs/PolicyRule"
+      },
+      "title": "Allow",
+      "type": "array"
+    },
+    "deny": {
+      "items": {
+        "$ref": "#/$defs/PolicyRule"
+      },
+      "title": "Deny",
+      "type": "array"
+    },
+    "askUser": {
+      "items": {
+        "$ref": "#/$defs/PolicyRule"
+      },
+      "title": "Askuser",
+      "type": "array"
+    },
+    "requireApproval": {
+      "items": {
+        "$ref": "#/$defs/PolicyRule"
+      },
+      "title": "Requireapproval",
+      "type": "array"
+    }
+  },
+  "title": "Policy Document",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

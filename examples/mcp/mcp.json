@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "clock": {
+      "command": "python3",
+      "args": ["server/clock_mcp.py"]
+    }
+  }
+}

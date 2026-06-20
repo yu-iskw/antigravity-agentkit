@@ -1,0 +1,19 @@
+default: deny
+
+allow:
+  - tool: read_skill
+  - tool: mcp.clock.get_utc_time
+
+askUser:
+  - tool: mcp.clock.echo
+    when:
+      risk: medium
+
+requireApproval:
+  - tool: mcp.clock.echo
+    when:
+      lengthGt: 100
+
+deny:
+  - tool: run_command
+  - tool: write_file

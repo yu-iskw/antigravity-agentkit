@@ -46,7 +46,7 @@ make clean        # Clean build artifacts
 
 ## Testing
 
-- Tests live under `src/your_package/tests/` (colocated with the package)
+- Tests live under `src/antigravity_agentkit/tests/` (colocated with the package)
 - Test files must match `test_*.py`
 - Run `make test` before commits
 - Aim for meaningful coverage on critical paths
@@ -82,7 +82,7 @@ make clean        # Clean build artifacts
 
 ## Architecture
 
-- Package source: `src/your_package/` (rename when initializing a real project)
+- Package source: `src/antigravity_agentkit/`
 - Dev scripts: `dev/`
 - CI/CD: `.github/workflows/`
 - **Claude Code** automation: [`.claude/`](.claude/) — see [CLAUDE.md](CLAUDE.md) for how Claude loads this repo and the directory layout
@@ -141,7 +141,7 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 | **Cursor**                                          | Loads root [AGENTS.md](AGENTS.md) and root [CLAUDE.md](CLAUDE.md) for Agent chat (and optional `.cursor/rules/`). [Cursor: Rules](https://cursor.com/docs/rules)                                                                                                                                                                                                                                                                                                                                    |
 | **OpenAI Codex**                                    | Merges `~/.codex/AGENTS.md` (or override) with repo [AGENTS.md](AGENTS.md) along the path; default size cap (often 32 KiB) applies to the combined project doc. Project overrides (e.g. `sandbox_mode`, `approval_policy`, `[sandbox_workspace_write]`) can live in [`.codex/config.toml`](.codex/config.toml) when the project is trusted. [Codex: AGENTS.md](https://developers.openai.com/codex/guides/agents-md/), [Codex: Sandboxing](https://developers.openai.com/codex/concepts/sandboxing) |
 | **Claude Code**                                     | Reads [CLAUDE.md](CLAUDE.md) (which inlines this file) plus [`.claude/`](.claude/). [Anthropic: CLAUDE.md](https://docs.anthropic.com/en/docs/claude-code/claude-md), [Claude directory](https://code.claude.com/docs/en/claude-directory)                                                                                                                                                                                                                                                          |
-| **Gemini CLI**                                      | Project [`.gemini/settings.json`](.gemini/settings.json) includes `AGENTS.md` in `context.fileName` with typical `GEMINI.md` handling. [Gemini: context](https://geminicli.com/docs/cli/gemini-md/)                                                                                                                                                                                                                                                                                                 |
+| **Gemini CLI**                                      | Project `.gemini/settings.json` includes `AGENTS.md` in `context.fileName` with typical `GEMINI.md` handling. [Gemini: context](https://geminicli.com/docs/cli/gemini-md/)                                                                                                                                                                                                                                                                                                                          |
 | **GitHub Copilot** (Chat, code review, cloud agent) | Treats root `AGENTS.md` (and `CLAUDE.md` / `GEMINI.md` if present) as **agent instructions**; may also use `.github/copilot-instructions.md` and path-scoped files with defined precedence. [Custom instructions](https://docs.github.com/en/copilot/concepts/prompting/response-customization)                                                                                                                                                                                                     |
 
 **Copilot / GitHub.com:** This repo does not add `.github/copilot-instructions.md`; build, test, and style narrative stay in this file. On GitHub.com, personal instructions override repository content, then path-scoped rules and `copilot-instructions.md` apply (see [Custom instructions](https://docs.github.com/en/copilot/concepts/prompting/response-customization)). **Edit policy:** shared rules here; Claude Code-only behavior, `@AGENTS.md` import, and `.claude/` details in [CLAUDE.md](CLAUDE.md).

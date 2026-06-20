@@ -87,7 +87,7 @@ Relevant Antigravity SDK public capabilities include:
 - streaming responses, thoughts, and tool calls;
 - triggers for event-driven/background behavior.
 
-Source: https://github.com/google-antigravity/antigravity-sdk-python
+Source: <https://github.com/google-antigravity/antigravity-sdk-python>
 
 Google Cloud Gemini Enterprise Agent Platform adds the production control plane:
 
@@ -103,10 +103,10 @@ Google Cloud Skill Registry is especially relevant because it treats each skill 
 
 Sources:
 
-- Skill Registry: https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry
-- Agent Registry: https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry
-- Deploy Agent Runtime / Agent Engine: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent
-- Agent Gateway: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy
+- Skill Registry: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry>
+- Agent Registry: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry>
+- Deploy Agent Runtime / Agent Engine: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent>
+- Agent Gateway: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy>
 
 ### 2.2 Underlying Intent
 
@@ -286,11 +286,11 @@ As the number of agents grows, local file discovery should give way to registry-
 ```mermaid
 flowchart TD
     Author[Agent Author] --> Repo[Git Repository]
-    Repo --> Validate[agentkit validate]
-    Validate --> Compile[agentkit compile]
-    Compile --> LocalRun[agentkit run]
-    Compile --> Package[agentkit package]
-    Package --> Deploy[agentkit deploy]
+    Repo --> Validate[antigravity-agentkit validate]
+    Validate --> Compile[antigravity-agentkit compile]
+    Compile --> LocalRun[antigravity-agentkit run]
+    Compile --> Package[antigravity-agentkit package]
+    Package --> Deploy[antigravity-agentkit deploy]
 
     Deploy --> Runtime[Google Cloud Agent Runtime / Agent Engine]
     Runtime --> Antigravity[Antigravity SDK Agent]
@@ -315,7 +315,7 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-    participant CLI as agentkit CLI
+    participant CLI as antigravity-agentkit CLI
     participant Loader as Config Loader
     participant Validator as Validator
     participant Compiler as Compiler
@@ -588,7 +588,7 @@ AgentKit should accept a common MCP config shape:
       "command": "npx",
       "args": ["-y", "@company/lightdash-mcp", "--profile", "readonly"],
       "env": {
-        "LIGHTDASH_URL": "https://lightdash.example.com"
+        "LIGHTDASH_URL": "<https://lightdash.example.com">
       }
     }
   }
@@ -657,7 +657,7 @@ AgentKit validation should mirror relevant Google Skill Registry constraints:
 
 Google Cloud Skill Registry currently documents validation constraints including required `SKILL.md`, zip archive validation, no symbolic links, no path traversal, maximum archive size, and frontmatter rules.
 
-Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry
+Source: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry>
 
 ### 7.6 Subagents
 
@@ -829,30 +829,30 @@ agent = project.create_agent()
 ### 8.3 CLI
 
 ```bash
-agentkit init my-agent
-agentkit validate ./agents/my-agent
-agentkit compile ./agents/my-agent
-agentkit run ./agents/my-agent --prompt "Hello"
-agentkit eval ./agents/my-agent
-agentkit package ./agents/my-agent
-agentkit deploy ./agents/my-agent --project my-project --location asia-northeast1
-agentkit publish-skill ./skills/bigquery-analysis --project my-project --location us-central1
-agentkit register ./agents/my-agent --project my-project --location us-central1
+antigravity-agentkit init my-agent
+antigravity-agentkit validate ./agents/my-agent
+antigravity-agentkit compile ./agents/my-agent
+antigravity-agentkit run ./agents/my-agent --prompt "Hello"
+antigravity-agentkit eval ./agents/my-agent
+antigravity-agentkit package ./agents/my-agent
+antigravity-agentkit deploy ./agents/my-agent --project my-project --location asia-northeast1
+antigravity-agentkit publish-skill ./skills/bigquery-analysis --project my-project --location us-central1
+antigravity-agentkit register ./agents/my-agent --project my-project --location us-central1
 ```
 
 ### 8.4 CLI Command Behavior
 
-| Command | Purpose | Must be deterministic? | Cloud required? |
-|---|---|---:|---:|
-| `init` | Scaffold agent directory | Yes | No |
-| `validate` | Schema/security validation | Yes | No |
-| `compile` | Emit generated runtime view | Yes | No |
-| `run` | Local Antigravity run | Mostly | No |
-| `eval` | Run tests | Mostly | Optional |
-| `package` | Build deployable source bundle | Yes | No |
-| `deploy` | Deploy to Agent Runtime | No | Yes |
-| `publish-skill` | Upload skill to Skill Registry | No | Yes |
-| `register` | Register metadata to Agent Registry | No | Yes |
+| Command         | Purpose                             | Must be deterministic? | Cloud required? |
+| --------------- | ----------------------------------- | ---------------------: | --------------: |
+| `init`          | Scaffold agent directory            |                    Yes |              No |
+| `validate`      | Schema/security validation          |                    Yes |              No |
+| `compile`       | Emit generated runtime view         |                    Yes |              No |
+| `run`           | Local Antigravity run               |                 Mostly |              No |
+| `eval`          | Run tests                           |                 Mostly |        Optional |
+| `package`       | Build deployable source bundle      |                    Yes |              No |
+| `deploy`        | Deploy to Agent Runtime             |                     No |             Yes |
+| `publish-skill` | Upload skill to Skill Registry      |                     No |             Yes |
+| `register`      | Register metadata to Agent Registry |                     No |             Yes |
 
 ---
 
@@ -1018,7 +1018,7 @@ AgentKit should support deployment modes in this order:
 3. **Container image deployment**: best regulated enterprise path.
 4. **Python object deployment**: useful for interactive development only.
 
-Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent
+Source: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent>
 
 ### 10.2 Source Package Deployment
 
@@ -1134,7 +1134,7 @@ Caveat: not every Agent Platform feature is necessarily available in every regio
 AgentKit should support:
 
 ```bash
-agentkit publish-skill ./skills/bigquery-analysis \
+antigravity-agentkit publish-skill ./skills/bigquery-analysis \
   --project my-project \
   --location us-central1
 ```
@@ -1169,7 +1169,7 @@ skills:
 AgentKit should support:
 
 ```bash
-agentkit register ./agents/finance-analysis-agent \
+antigravity-agentkit register ./agents/finance-analysis-agent \
   --project my-project \
   --location us-central1
 ```
@@ -1198,7 +1198,7 @@ Registry metadata should include:
 
 Agent Registry is documented as a governance and inventory catalog for agents, MCP servers, tools, and endpoints. AgentKit should use it as the central inventory rather than maintaining a separate registry database.
 
-Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry
+Source: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry>
 
 ### 11.3 MCP Server Registration
 
@@ -1233,23 +1233,23 @@ Metadata:
 
 AgentKit introduces several risk surfaces:
 
-| Risk | Example | Mitigation |
-|---|---|---|
-| Prompt injection | User asks agent to ignore policies | Compile policies outside prompt; default deny tools |
-| Tool abuse | Agent calls delete or write tools | Tool allowlist, denylist, `ask_user`, external approvals |
-| MCP server compromise | MCP server exfiltrates context | MCP admission policy, registry allowlist, network egress controls |
-| Skill supply-chain attack | Malicious `SKILL.md` steers behavior | Skill validation, review, registry pinning, semantic scans |
-| Dependency compromise | Unpinned package in MCP command | lock files, hashes, internal package mirrors |
-| Privilege escalation | Runtime SA can deploy or modify IAM | separate deployer/runtime identities |
-| Data exfiltration | Agent sends sensitive data to external endpoint | Agent Gateway egress allowlist, DLP checks, logging |
-| Shadow agents | Unregistered agents deployed manually | org policy, registry audit, CI enforcement |
-| Overbroad subagents | Subagent inherits all parent tools | per-subagent tool scoping |
+| Risk                      | Example                                         | Mitigation                                                        |
+| ------------------------- | ----------------------------------------------- | ----------------------------------------------------------------- |
+| Prompt injection          | User asks agent to ignore policies              | Compile policies outside prompt; default deny tools               |
+| Tool abuse                | Agent calls delete or write tools               | Tool allowlist, denylist, `ask_user`, external approvals          |
+| MCP server compromise     | MCP server exfiltrates context                  | MCP admission policy, registry allowlist, network egress controls |
+| Skill supply-chain attack | Malicious `SKILL.md` steers behavior            | Skill validation, review, registry pinning, semantic scans        |
+| Dependency compromise     | Unpinned package in MCP command                 | lock files, hashes, internal package mirrors                      |
+| Privilege escalation      | Runtime SA can deploy or modify IAM             | separate deployer/runtime identities                              |
+| Data exfiltration         | Agent sends sensitive data to external endpoint | Agent Gateway egress allowlist, DLP checks, logging               |
+| Shadow agents             | Unregistered agents deployed manually           | org policy, registry audit, CI enforcement                        |
+| Overbroad subagents       | Subagent inherits all parent tools              | per-subagent tool scoping                                         |
 
 ### 12.2 MCP Security
 
 MCP standardizes LLM access to external data and tools using JSON-RPC between hosts, clients, and servers. The MCP specification explicitly calls out security considerations including user consent, data privacy, tool safety, and the fact that tool behavior descriptions should be treated as untrusted unless obtained from trusted servers.
 
-Source: https://modelcontextprotocol.io/specification/2025-06-18
+Source: <https://modelcontextprotocol.io/specification/2025-06-18>
 
 AgentKit should therefore:
 
@@ -1265,7 +1265,7 @@ AgentKit should therefore:
 
 Agent Gateway can route Agent Runtime traffic and enforce governed connectivity. Google documentation notes default-deny behavior for Agent Gateway traffic, requiring allowed endpoints for platform functions such as Cloud Trace and Cloud Logging.
 
-Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy
+Source: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy>
 
 AgentKit should support manifest configuration for gateway mode:
 
@@ -1275,21 +1275,21 @@ deployment:
     enabled: true
     egressPolicy: approved-agent-egress
     requiredEndpoints:
-      - https://telemetry.googleapis.com/
-      - https://logging.googleapis.com/
+      - <https://telemetry.googleapis.com/>
+      - <https://logging.googleapis.com/>
 ```
 
 ### 12.4 Policy Profiles
 
 AgentKit should ship with policy profiles:
 
-| Profile | Use case | Behavior |
-|---|---|---|
-| `dev-open` | local prototyping | relaxed, warnings only |
-| `dev-restricted` | normal local development | default deny for dangerous tools |
-| `prod-readonly` | metadata/read-only agents | no writes, no shell, approved MCP only |
-| `prod-human-approval` | medium-risk agents | risky tools require approval |
-| `prod-locked` | regulated agents | registry-pinned tools/skills only, no dynamic loading |
+| Profile               | Use case                  | Behavior                                              |
+| --------------------- | ------------------------- | ----------------------------------------------------- |
+| `dev-open`            | local prototyping         | relaxed, warnings only                                |
+| `dev-restricted`      | normal local development  | default deny for dangerous tools                      |
+| `prod-readonly`       | metadata/read-only agents | no writes, no shell, approved MCP only                |
+| `prod-human-approval` | medium-risk agents        | risky tools require approval                          |
+| `prod-locked`         | regulated agents          | registry-pinned tools/skills only, no dynamic loading |
 
 ### 12.5 Secrets
 
@@ -1299,7 +1299,7 @@ Allowed:
 
 ```yaml
 env:
-  LIGHTDASH_URL: "https://lightdash.example.com"
+  LIGHTDASH_URL: "<https://lightdash.example.com">
   GOOGLE_CLOUD_PROJECT: "my-project"
 ```
 
@@ -1336,13 +1336,13 @@ Production CI should enforce:
 
 ### 13.1 Validation Levels
 
-| Level | Command | Purpose |
-|---|---|---|
-| Syntax | `agentkit validate --level syntax` | YAML/JSON/Markdown/frontmatter parse |
-| Schema | `agentkit validate --level schema` | Pydantic/JSON Schema validation |
-| Security | `agentkit validate --level security` | unsafe commands, secrets, risky tools |
-| Cloud | `agentkit validate --level cloud` | IAM, regions, registry resources |
-| Full | `agentkit validate --level full` | all checks |
+| Level    | Command                                          | Purpose                               |
+| -------- | ------------------------------------------------ | ------------------------------------- |
+| Syntax   | `antigravity-agentkit validate --level syntax`   | YAML/JSON/Markdown/frontmatter parse  |
+| Schema   | `antigravity-agentkit validate --level schema`   | Pydantic/JSON Schema validation       |
+| Security | `antigravity-agentkit validate --level security` | unsafe commands, secrets, risky tools |
+| Cloud    | `antigravity-agentkit validate --level cloud`    | IAM, regions, registry resources      |
+| Full     | `antigravity-agentkit validate --level full`     | all checks                            |
 
 ### 13.2 Example Diagnostics
 
@@ -1364,17 +1364,17 @@ WARN AGK-POLICY-007: Production agent has no explicit deny rule for run_command.
 Minimum CI:
 
 ```bash
-agentkit validate ./agents --recursive --profile prod-readonly
-agentkit eval ./agents --recursive --suite smoke
+antigravity-agentkit validate ./agents --recursive --profile prod-readonly
+antigravity-agentkit eval ./agents --recursive --suite smoke
 ```
 
 Recommended CI:
 
 ```bash
-agentkit validate ./agents --recursive --profile prod-locked
-agentkit package ./agents --recursive --check-reproducible
-agentkit eval ./agents --recursive --suite smoke,security,regression
-agentkit sbom ./agents --recursive
+antigravity-agentkit validate ./agents --recursive --profile prod-locked
+antigravity-agentkit package ./agents --recursive --check-reproducible
+antigravity-agentkit eval ./agents --recursive --suite smoke,security,regression
+antigravity-agentkit sbom ./agents --recursive
 ```
 
 ---
@@ -1485,8 +1485,8 @@ Deliverables:
 - `SYSTEM.md` loader,
 - `mcp.json` loader,
 - `compile_agent_config`,
-- `agentkit validate`,
-- `agentkit run`,
+- `antigravity-agentkit validate`,
+- `antigravity-agentkit run`,
 - one hello-world example.
 
 Acceptance criteria:
@@ -1521,8 +1521,8 @@ Deliverables:
 - source package generator,
 - generated runtime entrypoint,
 - `requirements.txt` generation,
-- `agentkit package`,
-- `agentkit deploy`,
+- `antigravity-agentkit package`,
+- `antigravity-agentkit deploy`,
 - deployment examples.
 
 Acceptance criteria:
@@ -1535,10 +1535,10 @@ Acceptance criteria:
 
 Deliverables:
 
-- `agentkit publish-skill`,
+- `antigravity-agentkit publish-skill`,
 - Skill Registry zip packaging,
 - `skills.lock`,
-- `agentkit register`,
+- `antigravity-agentkit register`,
 - Agent Registry metadata generation,
 - MCP server metadata generation.
 
@@ -1692,7 +1692,7 @@ This approach has the best balance of:
 3. Should skill loading be implemented as prompt compilation, internal tools, or both?
 4. How should AgentKit represent remote A2A agents before Agent Registry integration is stable?
 5. Should `mcp.json` support only stdio in v1, or also remote HTTP MCP servers?
-6. Should `agentkit deploy` directly mutate cloud resources, or should it emit Terraform/GitOps specs by default?
+6. Should `antigravity-agentkit deploy` directly mutate cloud resources, or should it emit Terraform/GitOps specs by default?
 7. How should human approval workflows integrate with Antigravity `ask_user` in non-interactive cloud deployments?
 8. How much of the policy system should live in AgentKit versus Google Cloud Agent Gateway / policy services?
 9. Should public PyPI package include Google Cloud deployment code by default or split it into extras such as `antigravity-agentkit[gcp]`?
@@ -1705,12 +1705,12 @@ This approach has the best balance of:
 1. Create Python package skeleton with `src/antigravity_agentkit`.
 2. Add Pydantic schema for `agent.yaml`.
 3. Add JSON schema export for editor validation.
-4. Implement `agentkit init`.
-5. Implement `agentkit validate`.
+4. Implement `antigravity-agentkit init`.
+5. Implement `antigravity-agentkit validate`.
 6. Implement `SYSTEM.md` loader.
 7. Implement `mcp.json` parser and compiler.
 8. Implement `compile_agent_config`.
-9. Implement `agentkit run`.
+9. Implement `antigravity-agentkit run`.
 10. Add hello-world example.
 11. Add local skill parser.
 12. Add skill validation aligned with Google Skill Registry constraints.
@@ -1762,8 +1762,8 @@ You are a concise helpful assistant.
 Run:
 
 ```bash
-agentkit validate examples/hello-agent
-agentkit run examples/hello-agent --prompt "Hello"
+antigravity-agentkit validate examples/hello-agent
+antigravity-agentkit run examples/hello-agent --prompt "Hello"
 ```
 
 ---
@@ -1790,16 +1790,16 @@ agents/finance-analysis-agent/
 Run locally:
 
 ```bash
-agentkit validate agents/finance-analysis-agent --profile prod-readonly
-agentkit eval agents/finance-analysis-agent
-agentkit run agents/finance-analysis-agent --prompt "Summarize available finance tables."
+antigravity-agentkit validate agents/finance-analysis-agent --profile prod-readonly
+antigravity-agentkit eval agents/finance-analysis-agent
+antigravity-agentkit run agents/finance-analysis-agent --prompt "Summarize available finance tables."
 ```
 
 Deploy:
 
 ```bash
-agentkit package agents/finance-analysis-agent
-agentkit deploy agents/finance-analysis-agent \
+antigravity-agentkit package agents/finance-analysis-agent
+antigravity-agentkit deploy agents/finance-analysis-agent \
   --project my-agent-project \
   --location asia-northeast1
 ```
@@ -1807,7 +1807,7 @@ agentkit deploy agents/finance-analysis-agent \
 Register:
 
 ```bash
-agentkit register agents/finance-analysis-agent \
+antigravity-agentkit register agents/finance-analysis-agent \
   --project my-agent-project \
   --location us-central1
 ```
@@ -1816,9 +1816,9 @@ agentkit register agents/finance-analysis-agent \
 
 ## 23. Appendix C: Source References
 
-- Google Antigravity SDK Python: https://github.com/google-antigravity/antigravity-sdk-python
-- Google Cloud Skill Registry: https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry
-- Google Cloud Agent Registry: https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry
-- Google Cloud Agent Runtime deployment: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent
-- Google Cloud Agent Gateway with Agent Runtime: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy
-- Model Context Protocol specification 2025-06-18: https://modelcontextprotocol.io/specification/2025-06-18
+- Google Antigravity SDK Python: <https://github.com/google-antigravity/antigravity-sdk-python>
+- Google Cloud Skill Registry: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry>
+- Google Cloud Agent Registry: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry>
+- Google Cloud Agent Runtime deployment: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent>
+- Google Cloud Agent Gateway with Agent Runtime: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy>
+- Model Context Protocol specification 2025-06-18: <https://modelcontextprotocol.io/specification/2025-06-18>

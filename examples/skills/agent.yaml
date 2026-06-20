@@ -1,0 +1,17 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Agent
+metadata:
+  name: skills-demo
+  displayName: Skills Demo
+  description: Demonstrates local SKILL.md packages and read_skill.
+spec:
+  runtime:
+    framework: antigravity
+    model: gemini-3-flash-preview
+    vertex:
+      enabled: false
+  instructions:
+    system: SYSTEM.md
+  skills:
+    local:
+      - skills/greeting-helper

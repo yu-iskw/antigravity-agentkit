@@ -126,10 +126,10 @@ The SDK's configuration model is therefore already close to what a markdown-nati
 
 Relevant source references:
 
-- Antigravity SDK README: https://github.com/google-antigravity/antigravity-sdk-python/blob/main/README.md
-- `AgentConfig`: https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/connections/connection.py
-- `SubagentConfig`, `CapabilitiesConfig`, MCP server config types: https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/types.py
-- High-level `Agent`: https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/agent.py
+- Antigravity SDK README: <https://github.com/google-antigravity/antigravity-sdk-python/blob/main/README.md>
+- `AgentConfig`: <https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/connections/connection.py>
+- `SubagentConfig`, `CapabilitiesConfig`, MCP server config types: <https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/types.py>
+- High-level `Agent`: <https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/agent.py>
 
 ### 5.2 Antigravity Safety Posture
 
@@ -143,7 +143,7 @@ Claude Code supports custom subagents as Markdown files with YAML frontmatter. S
 
 Reference:
 
-- Claude Code subagents documentation: https://code.claude.com/docs/en/sub-agents
+- Claude Code subagents documentation: <https://code.claude.com/docs/en/sub-agents>
 
 AgentKit should borrow the authoring ergonomics but not blindly copy runtime semantics. Some Claude-style fields map directly to Antigravity SDK, some should become AgentKit metadata, and some should be deferred until runtime support exists.
 
@@ -161,7 +161,7 @@ The deployment documentation states that source-file deployment is well suited f
 
 Reference:
 
-- Agent Runtime deployment documentation: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent
+- Agent Runtime deployment documentation: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent>
 
 AgentKit should prioritize source-file and container-image deployment paths for production, while preserving object-based deployment for experiments.
 
@@ -171,7 +171,7 @@ Agent Registry serves as the central hub for governance and inventory of AI agen
 
 Reference:
 
-- Agent Registry documentation: https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry
+- Agent Registry documentation: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry>
 
 AgentKit should treat registry sync as a first-class deployment step, not an optional afterthought.
 
@@ -197,7 +197,7 @@ Skill payload validation requires a zip payload and validates properties includi
 
 Reference:
 
-- Skill Registry documentation: https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry
+- Skill Registry documentation: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry>
 
 AgentKit should validate skill packages locally before upload so CI fails quickly.
 
@@ -375,26 +375,26 @@ You are an enterprise data governance agent.
 
 ### 8.2 Required Frontmatter Fields
 
-| Field | Required | Description |
-|---|---:|---|
-| `schema_version` | Yes | AgentKit package schema version. |
-| `kind` | Yes | Must be `AgentPackage` for root packages. |
-| `name` | Yes | Stable package identifier. |
-| `version` | Yes | SemVer package version. |
-| `description` | Yes | Short description used for discovery and registry metadata. |
+| Field            | Required | Description                                                 |
+| ---------------- | -------: | ----------------------------------------------------------- |
+| `schema_version` |      Yes | AgentKit package schema version.                            |
+| `kind`           |      Yes | Must be `AgentPackage` for root packages.                   |
+| `name`           |      Yes | Stable package identifier.                                  |
+| `version`        |      Yes | SemVer package version.                                     |
+| `description`    |      Yes | Short description used for discovery and registry metadata. |
 
 ### 8.3 Recommended Frontmatter Fields
 
-| Field | Description |
-|---|---|
-| `display_name` | Human-readable name. |
-| `model` | Provider/model/thinking settings. |
-| `runtime` | Runtime targets and adapter preferences. |
-| `capabilities` | Built-in tool exposure and subagent enablement. |
-| `mcp` | Link to MCP configuration. |
-| `skills` | Local skill package paths. |
-| `subagents` | Local subagent definition paths. |
-| `governance` | Owner, risk tier, lifecycle, service account, labels. |
+| Field          | Description                                           |
+| -------------- | ----------------------------------------------------- |
+| `display_name` | Human-readable name.                                  |
+| `model`        | Provider/model/thinking settings.                     |
+| `runtime`      | Runtime targets and adapter preferences.              |
+| `capabilities` | Built-in tool exposure and subagent enablement.       |
+| `mcp`          | Link to MCP configuration.                            |
+| `skills`       | Local skill package paths.                            |
+| `subagents`    | Local subagent definition paths.                      |
+| `governance`   | Owner, risk tier, lifecycle, service account, labels. |
 
 ---
 
@@ -444,39 +444,39 @@ Return:
 
 ### 9.2 Mapping to Antigravity SDK
 
-| AgentKit field | Antigravity SDK mapping | Notes |
-|---|---|---|
-| `name` | `SubagentConfig.name` | Required. |
-| `description` | `SubagentConfig.description` | Required. |
-| Markdown body | `SubagentConfig.system_instructions` | Appended to default subagent instructions. |
-| `capabilities.enabled_tools` | `SubagentCapabilities.enabled_tools` | Must map to built-in tools. |
-| `capabilities.disabled_tools` | `SubagentCapabilities.disabled_tools` | Mutually exclusive with enabled tools. |
-| `tools` | `SubagentConfig.tools` | Custom tools must also be available to main agent. |
-| `model` | AgentKit metadata initially | Native per-subagent model mapping may require adapter support. |
-| `max_turns` | AgentKit orchestration metadata | Enforced by wrapper if runtime does not support it. |
-| `mcp_servers` | AgentKit metadata initially | Can be enforced by tool-scoping policy. |
-| `skills` | AgentKit metadata initially | Can be appended to system instructions or runtime skill paths. |
+| AgentKit field                | Antigravity SDK mapping               | Notes                                                          |
+| ----------------------------- | ------------------------------------- | -------------------------------------------------------------- |
+| `name`                        | `SubagentConfig.name`                 | Required.                                                      |
+| `description`                 | `SubagentConfig.description`          | Required.                                                      |
+| Markdown body                 | `SubagentConfig.system_instructions`  | Appended to default subagent instructions.                     |
+| `capabilities.enabled_tools`  | `SubagentCapabilities.enabled_tools`  | Must map to built-in tools.                                    |
+| `capabilities.disabled_tools` | `SubagentCapabilities.disabled_tools` | Mutually exclusive with enabled tools.                         |
+| `tools`                       | `SubagentConfig.tools`                | Custom tools must also be available to main agent.             |
+| `model`                       | AgentKit metadata initially           | Native per-subagent model mapping may require adapter support. |
+| `max_turns`                   | AgentKit orchestration metadata       | Enforced by wrapper if runtime does not support it.            |
+| `mcp_servers`                 | AgentKit metadata initially           | Can be enforced by tool-scoping policy.                        |
+| `skills`                      | AgentKit metadata initially           | Can be appended to system instructions or runtime skill paths. |
 
 ### 9.3 Compatibility with Claude-Style Subagents
 
 AgentKit should support a compatibility parser for common Claude-style fields:
 
-| Claude-style field | AgentKit handling |
-|---|---|
-| `name` | Supported. |
-| `description` | Supported. |
-| `tools` | Mapped to `capabilities.enabled_tools` where possible. |
-| `disallowedTools` | Mapped to `capabilities.disabled_tools` where possible. |
-| `model` | Stored as model preference metadata. |
-| `permissionMode` | Mapped to governance/policy metadata. |
-| `mcpServers` | Mapped to MCP server references. |
-| `hooks` | Mapped to hook references if locally available. |
-| `maxTurns` | Enforced by AgentKit wrapper if possible. |
-| `skills` | Mapped to skill references. |
-| `memory` | Deferred to sessions/memory adapter. |
-| `background` | Deferred to orchestration adapter. |
-| `isolation` | Deferred to workspace/sandbox adapter. |
-| `color` | UI metadata only. |
+| Claude-style field | AgentKit handling                                       |
+| ------------------ | ------------------------------------------------------- |
+| `name`             | Supported.                                              |
+| `description`      | Supported.                                              |
+| `tools`            | Mapped to `capabilities.enabled_tools` where possible.  |
+| `disallowedTools`  | Mapped to `capabilities.disabled_tools` where possible. |
+| `model`            | Stored as model preference metadata.                    |
+| `permissionMode`   | Mapped to governance/policy metadata.                   |
+| `mcpServers`       | Mapped to MCP server references.                        |
+| `hooks`            | Mapped to hook references if locally available.         |
+| `maxTurns`         | Enforced by AgentKit wrapper if possible.               |
+| `skills`           | Mapped to skill references.                             |
+| `memory`           | Deferred to sessions/memory adapter.                    |
+| `background`       | Deferred to orchestration adapter.                      |
+| `isolation`        | Deferred to workspace/sandbox adapter.                  |
+| `color`            | UI metadata only.                                       |
 
 Unsupported compatibility fields should produce warnings, not silent behavior changes.
 
@@ -493,7 +493,7 @@ AgentKit should use a root-level `mcp.json` inspired by existing coding-agent co
   "mcpServers": {
     "data_catalog": {
       "type": "http",
-      "url": "https://data-catalog-mcp.example.com/mcp",
+      "url": "<https://data-catalog-mcp.example.com/mcp",>
       "headers": {
         "Authorization": "Bearer ${DATA_CATALOG_TOKEN}"
       },
@@ -514,17 +514,17 @@ AgentKit should use a root-level `mcp.json` inspired by existing coding-agent co
 
 ### 10.2 Mapping to Antigravity SDK
 
-| `mcp.json` field | Antigravity SDK type/field |
-|---|---|
-| `type: "stdio"` | `McpStdioServer` |
-| `type: "http"` | `McpStreamableHttpServer` |
-| `command` | `McpStdioServer.command` |
-| `args` | `McpStdioServer.args` |
-| `env` | `McpStdioServer.env` |
-| `url` | `McpStreamableHttpServer.url` |
-| `headers` | `McpStreamableHttpServer.headers` |
-| `enabled_tools` | MCP tool allowlist |
-| `disabled_tools` | MCP tool denylist |
+| `mcp.json` field  | Antigravity SDK type/field             |
+| ----------------- | -------------------------------------- |
+| `type: "stdio"`   | `McpStdioServer`                       |
+| `type: "http"`    | `McpStreamableHttpServer`              |
+| `command`         | `McpStdioServer.command`               |
+| `args`            | `McpStdioServer.args`                  |
+| `env`             | `McpStdioServer.env`                   |
+| `url`             | `McpStreamableHttpServer.url`          |
+| `headers`         | `McpStreamableHttpServer.headers`      |
+| `enabled_tools`   | MCP tool allowlist                     |
+| `disabled_tools`  | MCP tool denylist                      |
 | `timeout_seconds` | MCP connection timeout where supported |
 
 ### 10.3 Security Rules
@@ -668,16 +668,16 @@ audit:
 
 AgentKit should require or strongly recommend:
 
-| Field | Description |
-|---|---|
-| `owner` | Owning team or individual. |
-| `risk_tier` | Low, medium, high, critical. |
-| `lifecycle` | Experimental, dev, staging, prod, deprecated. |
-| `service_account` | Runtime identity. |
-| `data_classes` | Data categories the agent can process. |
-| `registry_labels` | Labels for discovery and policy. |
-| `approval_required` | Whether deployment needs approval. |
-| `oncall` | Owning operational contact. |
+| Field               | Description                                   |
+| ------------------- | --------------------------------------------- |
+| `owner`             | Owning team or individual.                    |
+| `risk_tier`         | Low, medium, high, critical.                  |
+| `lifecycle`         | Experimental, dev, staging, prod, deprecated. |
+| `service_account`   | Runtime identity.                             |
+| `data_classes`      | Data categories the agent can process.        |
+| `registry_labels`   | Labels for discovery and policy.              |
+| `approval_required` | Whether deployment needs approval.            |
+| `oncall`            | Owning operational contact.                   |
 
 ### 12.3 Fail-Closed Rule
 
@@ -1113,15 +1113,15 @@ cases:
 
 ### 18.2 Evaluation Types
 
-| Eval type | Purpose |
-|---|---|
-| Smoke | Ensure package runs. |
-| Regression | Detect prompt or runtime behavior drift. |
-| Safety | Check refusal, redaction, and policy behavior. |
-| Tool-use | Verify correct tool selection and tool boundaries. |
-| Governance | Verify metadata, owner, IAM, policy, registry state. |
-| Performance | Track latency and cost. |
-| Reliability | Detect flaky or nondeterministic behavior. |
+| Eval type   | Purpose                                              |
+| ----------- | ---------------------------------------------------- |
+| Smoke       | Ensure package runs.                                 |
+| Regression  | Detect prompt or runtime behavior drift.             |
+| Safety      | Check refusal, redaction, and policy behavior.       |
+| Tool-use    | Verify correct tool selection and tool boundaries.   |
+| Governance  | Verify metadata, owner, IAM, policy, registry state. |
+| Performance | Track latency and cost.                              |
+| Reliability | Detect flaky or nondeterministic behavior.           |
 
 ---
 
@@ -1146,18 +1146,18 @@ AgentKit must account for:
 
 ### 19.2 Security Controls
 
-| Control | Implementation |
-|---|---|
-| Least privilege | Capabilities allowlists and service-account scoping. |
-| Fail closed | Validation fails on missing policy for risky tools. |
-| Secrets hygiene | Literal secret scanning; Secret Manager references only. |
-| MCP isolation | MCP allowlists, registry metadata, gateway routing. |
-| Runtime policy | Antigravity policies and hooks. |
-| Artifact integrity | Lockfiles, SBOM, provenance, image digests. |
-| Human approval | Required for destructive or high-risk actions. |
-| Auditing | Tool-call and MCP-call logs with redaction. |
-| Evaluation gates | Safety and policy eval suites before deployment. |
-| Lifecycle governance | Registry labels and lifecycle states. |
+| Control              | Implementation                                           |
+| -------------------- | -------------------------------------------------------- |
+| Least privilege      | Capabilities allowlists and service-account scoping.     |
+| Fail closed          | Validation fails on missing policy for risky tools.      |
+| Secrets hygiene      | Literal secret scanning; Secret Manager references only. |
+| MCP isolation        | MCP allowlists, registry metadata, gateway routing.      |
+| Runtime policy       | Antigravity policies and hooks.                          |
+| Artifact integrity   | Lockfiles, SBOM, provenance, image digests.              |
+| Human approval       | Required for destructive or high-risk actions.           |
+| Auditing             | Tool-call and MCP-call logs with redaction.              |
+| Evaluation gates     | Safety and policy eval suites before deployment.         |
+| Lifecycle governance | Registry labels and lifecycle states.                    |
 
 ### 19.3 Secret Reference Format
 
@@ -1230,11 +1230,11 @@ schema_version: agentkit.dev/v1beta1
 
 AgentKit should support:
 
-| Mode | Description |
-|---|---|
-| `native` | Strict AgentKit schema. |
-| `claude-compatible` | Accepts common Claude-style subagent fields. |
-| `cursor-compatible` | Future support for Cursor-like rule/plugin conventions. |
+| Mode                   | Description                                               |
+| ---------------------- | --------------------------------------------------------- |
+| `native`               | Strict AgentKit schema.                                   |
+| `claude-compatible`    | Accepts common Claude-style subagent fields.              |
+| `cursor-compatible`    | Future support for Cursor-like rule/plugin conventions.   |
 | `agents-md-compatible` | Future support for interoperable `AGENTS.md` conventions. |
 
 ### 21.3 Runtime Adapter Versioning
@@ -1536,16 +1536,16 @@ This is the fastest path to the stated goal: **instant implementation and shipme
 
 ## 28. References
 
-- Google Antigravity SDK repository: https://github.com/google-antigravity/antigravity-sdk-python
-- Antigravity SDK README: https://github.com/google-antigravity/antigravity-sdk-python/blob/main/README.md
-- Antigravity SDK `AgentConfig`: https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/connections/connection.py
-- Antigravity SDK types: https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/types.py
-- Antigravity SDK `Agent`: https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/agent.py
-- Google Cloud Agent Runtime deployment: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent
-- Google Cloud Agent Registry: https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry
-- Google Cloud Skill Registry: https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry
-- Claude Code subagents: https://code.claude.com/docs/en/sub-agents
-- Model Context Protocol: https://modelcontextprotocol.io/
+- Google Antigravity SDK repository: <https://github.com/google-antigravity/antigravity-sdk-python>
+- Antigravity SDK README: <https://github.com/google-antigravity/antigravity-sdk-python/blob/main/README.md>
+- Antigravity SDK `AgentConfig`: <https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/connections/connection.py>
+- Antigravity SDK types: <https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/types.py>
+- Antigravity SDK `Agent`: <https://github.com/google-antigravity/antigravity-sdk-python/blob/main/google/antigravity/agent.py>
+- Google Cloud Agent Runtime deployment: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/deploy-an-agent>
+- Google Cloud Agent Registry: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-registry>
+- Google Cloud Skill Registry: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/skill-registry>
+- Claude Code subagents: <https://code.claude.com/docs/en/sub-agents>
+- Model Context Protocol: <https://modelcontextprotocol.io/>
 
 ---
 

@@ -1,0 +1,38 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Agent
+metadata:
+  name: mcp-demo
+  displayName: MCP Demo
+  description: Demonstrates MCP tools, policies, and evals with a local clock server.
+  owner: platform-team
+  labels:
+    domain: examples
+spec:
+  runtime:
+    framework: antigravity
+    model: gemini-3-flash-preview
+    vertex:
+      enabled: false
+    capabilities:
+      mode: restricted
+  instructions:
+    system: SYSTEM.md
+  mcp:
+    file: mcp.json
+    admissionPolicy:
+      allowedServers:
+        - clock
+  skills:
+    local:
+      - skills/mcp-guide
+  subagents:
+    - name: time-checker
+      type: markdown
+      file: subagents/time-checker.md
+      tools:
+        - mcp.clock.get_utc_time
+  policies:
+    file: policies.yaml
+  evals:
+    files:
+      - evals/smoke.yaml

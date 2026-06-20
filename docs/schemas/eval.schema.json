@@ -1,0 +1,127 @@
+{
+  "$defs": {
+    "EvalCase": {
+      "additionalProperties": false,
+      "description": "A single evaluation test case.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "input": {
+          "minLength": 1,
+          "title": "Input",
+          "type": "string"
+        },
+        "expected": {
+          "$ref": "#/$defs/EvalExpected"
+        },
+        "tools": {
+          "$ref": "#/$defs/EvalToolConstraints"
+        }
+      },
+      "required": ["name", "input"],
+      "title": "EvalCase",
+      "type": "object"
+    },
+    "EvalExpected": {
+      "additionalProperties": false,
+      "description": "Expected assertions for an evaluation case.",
+      "properties": {
+        "mustMention": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mustmention",
+          "type": "array"
+        },
+        "mustNotMention": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mustnotmention",
+          "type": "array"
+        },
+        "maxToolCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtoolcalls"
+        },
+        "maxLatencySeconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxlatencyseconds"
+        },
+        "forbiddenPatterns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbiddenpatterns",
+          "type": "array"
+        }
+      },
+      "title": "EvalExpected",
+      "type": "object"
+    },
+    "EvalToolConstraints": {
+      "additionalProperties": false,
+      "description": "Tool allow/deny constraints for an evaluation case.",
+      "properties": {
+        "allowed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed",
+          "type": "array"
+        },
+        "denied": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Denied",
+          "type": "array"
+        }
+      },
+      "title": "EvalToolConstraints",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Evaluation suite from evals/*.yaml.",
+  "properties": {
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/EvalCase"
+      },
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    }
+  },
+  "required": ["version", "cases"],
+  "title": "Evaluation Suite",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

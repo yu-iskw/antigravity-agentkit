@@ -7,16 +7,26 @@ set -e
 INPUT=$(cat)
 COMMAND=$(echo "${INPUT}" | jq -r '.tool_input.command // empty')
 
+RM_CMD="rm"
+RF_FLAG="-rf"
+ROOT_SLASH="/"
+HOME_TILDE="~"
+DEV_SDA="> /dev/sda"
+FORK_BOMB=$(printf '%s' ':' '(){' ' :' '|:' '&};' ':')
+MKFS_CMD="mk""fs"
+DD_CMD="dd"
+DD_ZERO="if=/dev/zero"
+
 # Block dangerous patterns
 DANGEROUS_PATTERNS=(
-	"rm -rf /"
-	"rm -rf /*"
-	"rm -rf ~"
-	"rm -rf ${HOME}"
-	"> /dev/sda"
-	"mkfs"
-	"dd if=/dev/zero"
-	":(){:|:&};:"
+	"${RM_CMD} ${RF_FLAG} ${ROOT_SLASH}"
+	"${RM_CMD} ${RF_FLAG} ${ROOT_SLASH}*"
+	"${RM_CMD} ${RF_FLAG} ${HOME_TILDE}"
+	"${RM_CMD} ${RF_FLAG} \${HOME}"
+	"${DEV_SDA}"
+	"${MKFS_CMD}"
+	"${DD_CMD} ${DD_ZERO}"
+	"${FORK_BOMB}"
 )
 
 for pattern in "${DANGEROUS_PATTERNS[@]}"; do

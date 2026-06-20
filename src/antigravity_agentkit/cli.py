@@ -1,0 +1,286 @@
+"""Typer CLI for Antigravity AgentKit."""
+
+from __future__ import annotations
+
+import json
+from enum import Enum
+from pathlib import Path
+
+import typer
+from rich.console import Console
+
+from antigravity_agentkit.compiler import compile_agent_config, compile_to_sdk_config
+from antigravity_agentkit.deploy import build_source_package, deploy
+from antigravity_agentkit.evals import assert_evals_passed, run_evals
+from antigravity_agentkit.exceptions import AgentKitError
+from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.registry import (
+    build_agent_registry_metadata,
+    build_mcp_server_metadata,
+    publish_skill,
+)
+from antigravity_agentkit.runtime import RuntimeAgent
+from antigravity_agentkit.validator import validate_project
+
+app = typer.Typer(
+    name="antigravity-agentkit",
+    help="Antigravity AgentKit — declarative agent compiler and governance layer.",
+    no_args_is_help=True,
+)
+console = Console()
+
+
+class _LevelChoice(str, Enum):
+    SYNTAX = "syntax"
+    SCHEMA = "schema"
+    SECURITY = "security"
+    CLOUD = "cloud"
+    FULL = "full"
+
+
+class _ProfileChoice(str, Enum):
+    DEV_OPEN = "dev-open"
+    DEV_RESTRICTED = "dev-restricted"
+    PROD_READONLY = "prod-readonly"
+    PROD_HUMAN_APPROVAL = "prod-human-approval"
+    PROD_LOCKED = "prod-locked"
+
+
+def _resolve_path(path: Path) -> Path:
+    return path.expanduser().resolve()
+
+
+def _print_error(exc: AgentKitError) -> None:
+    console.print(f"[red]Error:[/red] {exc}")
+
+
+def _load_project(path: Path) -> AgentProject:
+    return AgentProject.load(_resolve_path(path))
+
+
+@app.command("init")
+def init_agent(
+    name: str = typer.Argument(..., help="Agent directory name to create."),
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        "-o",
+        help="Parent directory for the new agent (default: current directory).",
+    ),
+) -> None:
+    """Scaffold a minimal agent directory."""
+    parent = _resolve_path(output_dir or Path.cwd())
+    agent_dir = parent / name
+    if agent_dir.exists():
+        console.print(f"[red]Directory already exists:[/red] {agent_dir}")
+        raise typer.Exit(code=1)
+
+    agent_dir.mkdir(parents=True)
+    (agent_dir / "SYSTEM.md").write_text(
+        "# Role\n\nYou are a helpful agent.\n",
+        encoding="utf-8",
+    )
+    display_name = name.replace("-", " ").title()
+    manifest = (
+        "apiVersion: antigravity-agentkit.dev/v1alpha1\n"
+        "kind: Agent\n"
+        "metadata:\n"
+        f"  name: {name}\n"
+        f"  displayName: {display_name}\n"
+        "  description: Minimal Antigravity AgentKit example.\n"
+        "spec:\n"
+        "  runtime:\n"
+        "    framework: antigravity\n"
+        "    vertex:\n"
+        "      enabled: false\n"
+        "  instructions:\n"
+        "    system: SYSTEM.md\n"
+    )
+    (agent_dir / "agent.yaml").write_text(manifest, encoding="utf-8")
+    console.print(f"[green]Created agent at[/green] {agent_dir}")
+
+
+@app.command("validate")
+def validate_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    level: _LevelChoice = typer.Option(_LevelChoice.SCHEMA, "--level", "-l"),
+    profile: _ProfileChoice = typer.Option(_ProfileChoice.DEV_OPEN, "--profile", "-p"),
+) -> None:
+    """Validate agent manifest, security rules, and cloud configuration."""
+    project = _load_project(path)
+    collector = validate_project(
+        project.root,
+        project.data,
+        level=level.value,  # type: ignore[arg-type]
+        profile=profile.value,  # type: ignore[arg-type]
+    )
+    if collector.diagnostics:
+        console.print(collector.format_all())
+    if collector.has_errors():
+        raise typer.Exit(code=1)
+    console.print("[green]Validation passed.[/green]")
+
+
+@app.command("compile")
+def compile_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Write JSON config to file."),
+    production: bool = typer.Option(False, "--production"),
+) -> None:
+    """Compile agent directory to runtime configuration."""
+    try:
+        compiled = compile_agent_config(_resolve_path(path), production=production)
+        sdk_view = {
+            "systemInstructionsLength": len(compiled.system_instructions),
+            "mcpServerCount": len(compiled.mcp_servers),
+            "toolCount": len(compiled.tools),
+            "policyCount": len(compiled.policies),
+            "model": compiled.model,
+            "vertex": compiled.vertex,
+        }
+        if output:
+            output.write_text(json.dumps(sdk_view, indent=2), encoding="utf-8")
+            console.print(f"[green]Wrote[/green] {output}")
+        else:
+            console.print_json(json.dumps(sdk_view))
+        compile_to_sdk_config(compiled)
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("run")
+def run_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    prompt: str = typer.Option(..., "--prompt", "-p", help="User prompt to send."),
+    production: bool = typer.Option(False, "--production"),
+) -> None:
+    """Run a local agent chat turn."""
+    import asyncio
+
+    async def _run() -> None:
+        runtime = RuntimeAgent.from_directory(_resolve_path(path), production=production)
+        response = await runtime.run_chat(prompt, production=production)
+        console.print(str(response))
+
+    try:
+        asyncio.run(_run())
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("eval")
+def eval_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    suite: str | None = typer.Option(None, "--suite", "-s", help="Comma-separated suite filter."),
+) -> None:
+    """Run evaluation suites in deterministic mock mode."""
+    try:
+        project = _load_project(path)
+        result = run_evals(project, suite_filter=suite)
+        for case in result.cases:
+            status = "PASS" if case.passed else "FAIL"
+            console.print(f"{status} {case.suite_path}:{case.name}")
+            for failure in case.failures:
+                console.print(f"  - {failure}")
+        console.print(f"\n{result.passed}/{result.total} passed")
+        assert_evals_passed(result)
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("package")
+def package_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    output_dir: Path | None = typer.Option(None, "--output-dir", "-o"),
+) -> None:
+    """Build a deployable source package."""
+    try:
+        project = _load_project(path)
+        package_path = build_source_package(project, output_dir=output_dir)
+        console.print(f"[green]Package built at[/green] {package_path}")
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("deploy")
+def deploy_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    project_id: str = typer.Option(..., "--project", "-p"),
+    location: str = typer.Option(..., "--location", "-l"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Dry-run config output path."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Force dry-run mode."),
+) -> None:
+    """Deploy to Agent Runtime or emit deployment config."""
+    try:
+        agent_project = _load_project(path)
+        summary = deploy(
+            agent_project,
+            project_id,
+            location,
+            output_path=output,
+            dry_run=dry_run or None,
+        )
+        console.print_json(json.dumps(summary, indent=2))
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("publish-skill")
+def publish_skill_cmd(
+    skill_dir: Path = typer.Argument(..., help="Path to skill package directory."),
+    project_id: str | None = typer.Option(None, "--project", "-p"),
+    location: str | None = typer.Option(None, "--location", "-l"),
+    output_dir: Path | None = typer.Option(None, "--output-dir", "-o"),
+) -> None:
+    """Validate and package a skill for Skill Registry publishing."""
+    try:
+        summary = publish_skill(
+            _resolve_path(skill_dir),
+            project=project_id,
+            location=location,
+            output_dir=output_dir,
+        )
+        console.print_json(json.dumps(summary, indent=2))
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("register")
+def register_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    project_id: str = typer.Option(..., "--project", "-p"),
+    location: str = typer.Option(..., "--location", "-l"),
+    output: Path | None = typer.Option(None, "--output", "-o"),
+) -> None:
+    """Emit Agent Registry metadata (local stub)."""
+    try:
+        agent_project = _load_project(path)
+        metadata = build_agent_registry_metadata(agent_project)
+        metadata["registry"] = {
+            "project": project_id,
+            "location": location,
+            "mcpServers": build_mcp_server_metadata(agent_project),
+        }
+        if output:
+            output.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+            console.print(f"[green]Wrote registry metadata to[/green] {output}")
+        else:
+            console.print_json(json.dumps(metadata, indent=2))
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+def main() -> None:
+    """CLI entry point."""
+    app()
+
+
+if __name__ == "__main__":
+    main()

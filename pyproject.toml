@@ -11,18 +11,32 @@ exclude = [
   ".pyright",
   ".pytest_cache",
   ".github",
+  ".gitignore",
+  ".cursorignore",
+  ".claude",
+  ".agents",
+  ".cursor",
+  ".codex",
+  "CLAUDE.md",
+  "AGENTS.md",
   ".trunk",
   "dev",
-  "src/your_package/tests",
+  "src/antigravity_agentkit/tests",
+  "examples",
   "dist",
   ".python-version",
+  "Makefile",
+  "requirements.setup.txt",
+  "mise.toml",
+  "mise.lock",
+  ".bandit",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/your_package"]
+packages = ["src/antigravity_agentkit"]
 
 [project]
-name = "your-package"
+name = "antigravity-agentkit"
 version = "0.1.0"
 authors = [{ name = "yu-iskw" }]
 readme = "README.md"
@@ -45,13 +59,22 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Typing :: Typed",
 ]
-description = "A dbt artifacts parser in python"
-dependencies = []
+description = "Declarative agent compiler and governance layer for Google Antigravity SDK"
+dependencies = [
+  "jsonschema>=4.26.0",
+  "pydantic>=2.13.4",
+  "pyyaml>=6.0.3",
+  "rich>=15.0.0",
+  "typer>=0.26.7",
+]
 
 [project.scripts]
+antigravity-agentkit = "antigravity_agentkit.cli:main"
+[project.optional-dependencies]
+antigravity = ["google-antigravity>=0.1.4"]
 
 [tool.pytest.ini_options]
-testpaths = ["src/your_package/tests"]
+testpaths = ["src/antigravity_agentkit/tests"]
 
 [dependency-groups]
 dev = [
@@ -64,11 +87,13 @@ dev = [
   "pylint>=3.3.5",
   "vulture>=2.16",
   "ssort>=0.16.0",
+  "google-antigravity>=0.1.4",
 ]
 
 [tool.pyright]
 include = ["src"]
 extraPaths = ["src"]
+stubPath = "typings"
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
 venvPath = "."
@@ -77,12 +102,12 @@ reportMissingImports = true
 reportMissingTypeStubs = "warning"
 
 [tool.vulture]
-paths = ["src/your_package"]
+paths = ["src/antigravity_agentkit"]
 min_confidence = 80
 
 [tool.coverage.run]
 branch = true
-source = ["src/your_package"]
+source = ["src/antigravity_agentkit"]
 
 [tool.coverage.report]
 show_missing = true

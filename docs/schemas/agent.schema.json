@@ -1,0 +1,715 @@
+{
+  "$defs": {
+    "AgentMetadata": {
+      "additionalProperties": false,
+      "description": "Identity and catalog metadata for an agent.",
+      "properties": {
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "displayName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Displayname"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        }
+      },
+      "required": ["name"],
+      "title": "AgentMetadata",
+      "type": "object"
+    },
+    "AgentRegistryConfig": {
+      "additionalProperties": false,
+      "description": "Agent Registry publishing options.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "AgentRegistryConfig",
+      "type": "object"
+    },
+    "AgentSpec": {
+      "additionalProperties": false,
+      "description": "Agent behavioral, governance, and deployment specification.",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/RuntimeSpec"
+        },
+        "instructions": {
+          "$ref": "#/$defs/InstructionsSpec"
+        },
+        "mcp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/McpSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "skills": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkillsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subagents": {
+          "items": {
+            "$ref": "#/$defs/SubagentSpec"
+          },
+          "title": "Subagents",
+          "type": "array"
+        },
+        "policies": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PoliciesSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "deployment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DeploymentSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "registry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RegistrySpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evals": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvalsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": ["instructions"],
+      "title": "AgentSpec",
+      "type": "object"
+    },
+    "CapabilitiesConfig": {
+      "additionalProperties": false,
+      "description": "Agent capability restrictions.",
+      "properties": {
+        "mode": {
+          "default": "restricted",
+          "enum": ["open", "restricted", "locked"],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "title": "CapabilitiesConfig",
+      "type": "object"
+    },
+    "DeploymentSpec": {
+      "additionalProperties": false,
+      "description": "Agent Runtime deployment configuration.",
+      "properties": {
+        "target": {
+          "default": "agent-runtime",
+          "enum": ["agent-runtime", "local"],
+          "title": "Target",
+          "type": "string"
+        },
+        "displayName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Displayname"
+        },
+        "serviceAccount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Serviceaccount"
+        },
+        "minInstances": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mininstances"
+        },
+        "maxInstances": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxinstances"
+        },
+        "resourceLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResourceLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "containerConcurrency": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Containerconcurrency"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "gateway": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GatewayConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "DeploymentSpec",
+      "type": "object"
+    },
+    "EvalsSpec": {
+      "additionalProperties": false,
+      "description": "Evaluation file references within agent.yaml.",
+      "properties": {
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        }
+      },
+      "title": "EvalsSpec",
+      "type": "object"
+    },
+    "GatewayConfig": {
+      "additionalProperties": false,
+      "description": "Agent Gateway ingress/egress configuration.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "egressPolicy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Egresspolicy"
+        },
+        "requiredEndpoints": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Requiredendpoints",
+          "type": "array"
+        }
+      },
+      "title": "GatewayConfig",
+      "type": "object"
+    },
+    "InstructionsSpec": {
+      "additionalProperties": false,
+      "description": "Instruction file references.",
+      "properties": {
+        "system": {
+          "minLength": 1,
+          "title": "System",
+          "type": "string"
+        }
+      },
+      "required": ["system"],
+      "title": "InstructionsSpec",
+      "type": "object"
+    },
+    "McpAdmissionPolicy": {
+      "additionalProperties": false,
+      "description": "Production MCP server admission allowlist.",
+      "properties": {
+        "allowedServers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowedservers",
+          "type": "array"
+        }
+      },
+      "title": "McpAdmissionPolicy",
+      "type": "object"
+    },
+    "McpRegistryConfig": {
+      "additionalProperties": false,
+      "description": "MCP server registration options.",
+      "properties": {
+        "register": {
+          "default": false,
+          "title": "Register",
+          "type": "boolean"
+        }
+      },
+      "title": "McpRegistryConfig",
+      "type": "object"
+    },
+    "McpSpec": {
+      "additionalProperties": false,
+      "description": "MCP configuration reference within agent.yaml.",
+      "properties": {
+        "file": {
+          "default": "mcp.json",
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        },
+        "admissionPolicy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/McpAdmissionPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "McpSpec",
+      "type": "object"
+    },
+    "PoliciesSpec": {
+      "additionalProperties": false,
+      "description": "Policy file reference within agent.yaml.",
+      "properties": {
+        "file": {
+          "default": "policies.yaml",
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        }
+      },
+      "title": "PoliciesSpec",
+      "type": "object"
+    },
+    "RegistrySkillRef": {
+      "additionalProperties": false,
+      "description": "Reference to a skill published in Skill Registry.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "revision": {
+          "default": "default",
+          "title": "Revision",
+          "type": "string"
+        },
+        "mode": {
+          "default": "pinned",
+          "enum": ["pinned", "floating"],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": ["name"],
+      "title": "RegistrySkillRef",
+      "type": "object"
+    },
+    "RegistrySpec": {
+      "additionalProperties": false,
+      "description": "Registry integration configuration.",
+      "properties": {
+        "agentRegistry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRegistryConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "skillRegistry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkillRegistryConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcpServers": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/McpRegistryConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "RegistrySpec",
+      "type": "object"
+    },
+    "ResourceLimits": {
+      "additionalProperties": false,
+      "description": "Container resource limits for deployment.",
+      "properties": {
+        "cpu": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cpu"
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Memory"
+        }
+      },
+      "title": "ResourceLimits",
+      "type": "object"
+    },
+    "RuntimeSpec": {
+      "additionalProperties": false,
+      "description": "Runtime framework and model configuration.",
+      "properties": {
+        "framework": {
+          "const": "antigravity",
+          "default": "antigravity",
+          "title": "Framework",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "vertex": {
+          "$ref": "#/$defs/VertexConfig"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/CapabilitiesConfig"
+        }
+      },
+      "title": "RuntimeSpec",
+      "type": "object"
+    },
+    "SkillRegistryConfig": {
+      "additionalProperties": false,
+      "description": "Skill Registry publishing options.",
+      "properties": {
+        "publishLocalSkills": {
+          "default": false,
+          "title": "Publishlocalskills",
+          "type": "boolean"
+        }
+      },
+      "title": "SkillRegistryConfig",
+      "type": "object"
+    },
+    "SkillsSpec": {
+      "additionalProperties": false,
+      "description": "Local and registry-backed skill references.",
+      "properties": {
+        "local": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Local",
+          "type": "array"
+        },
+        "registry": {
+          "items": {
+            "$ref": "#/$defs/RegistrySkillRef"
+          },
+          "title": "Registry",
+          "type": "array"
+        }
+      },
+      "title": "SkillsSpec",
+      "type": "object"
+    },
+    "SubagentAuth": {
+      "additionalProperties": false,
+      "description": "Authentication mode for remote subagents.",
+      "properties": {
+        "mode": {
+          "default": "agent-identity",
+          "enum": ["agent-identity", "service-account", "oauth"],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "title": "SubagentAuth",
+      "type": "object"
+    },
+    "SubagentSpec": {
+      "additionalProperties": false,
+      "description": "Local markdown or remote registry-backed subagent.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "default": "markdown",
+          "enum": ["markdown", "remote"],
+          "title": "Type",
+          "type": "string"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        },
+        "tools": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "registryRef": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Registryref"
+        },
+        "auth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubagentAuth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": ["name"],
+      "title": "SubagentSpec",
+      "type": "object"
+    },
+    "VertexConfig": {
+      "additionalProperties": false,
+      "description": "Vertex AI / Gemini Enterprise runtime configuration.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        }
+      },
+      "title": "VertexConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Top-level agent.yaml manifest.",
+  "properties": {
+    "apiVersion": {
+      "const": "antigravity-agentkit.dev/v1alpha1",
+      "default": "antigravity-agentkit.dev/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "kind": {
+      "const": "Agent",
+      "default": "Agent",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/AgentMetadata"
+    },
+    "spec": {
+      "$ref": "#/$defs/AgentSpec"
+    }
+  },
+  "required": ["metadata", "spec"],
+  "title": "Agent Manifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
