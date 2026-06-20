@@ -61,7 +61,7 @@ def capabilities_ir_is_default(cap_ir: dict[str, Any]) -> bool:
     """Return True when capabilities IR matches SDK defaults (no emit needed)."""
     return (
         cap_ir.get("mode") == "restricted"
-        and not cap_ir.get("enableSubagents")
+        and cap_ir.get("enableSubagents") is True
         and not cap_ir.get("enabledTools")
         and not cap_ir.get("disabledTools")
     )

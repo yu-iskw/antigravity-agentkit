@@ -9,6 +9,22 @@ import pytest
 from antigravity_agentkit.compiler import compile_agent_config, compile_to_sdk_config
 
 
+def test_compile_to_sdk_config_disables_subagents_by_default(
+    hello_world_agent_dir: Path,
+) -> None:
+    """SDK config preserves the compiled false value for agents without subagents."""
+    compiled = compile_agent_config(hello_world_agent_dir)
+
+    try:
+        sdk_config = compile_to_sdk_config(compiled)
+    except Exception as exc:
+        if "google-antigravity is not installed" in str(exc):
+            pytest.skip("google-antigravity not installed")
+        raise
+
+    assert sdk_config.capabilities.enable_subagents is False
+
+
 def test_compile_to_sdk_config_includes_subagents_and_capabilities(
     subagents_agent_dir: Path,
 ) -> None:

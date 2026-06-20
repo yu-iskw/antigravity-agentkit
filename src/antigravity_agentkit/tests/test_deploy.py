@@ -152,15 +152,80 @@ def test_build_source_package_rejects_escaping_source_paths(
     external_system = tmp_path / "external-SYSTEM.md"
     external_system.write_text("# Agent\n", encoding="utf-8")
     system_path = str(external_system) if path_kind == "absolute" else "../external-SYSTEM.md"
-    project = _write_minimal_agent(agent_dir)
+    _write_minimal_agent(agent_dir)
     manifest_path = agent_dir / "agent.yaml"
     manifest_path.write_text(
         manifest_path.read_text(encoding="utf-8").replace("SYSTEM.md", system_path),
         encoding="utf-8",
     )
+    with pytest.raises(LoadError, match="must be relative|escapes the agent directory"):
+        AgentProject.load(agent_dir)
+
+
+def test_build_source_package_is_self_contained(repo_root: Path, tmp_path: Path) -> None:
+    """The Agent Platform example package retains eval and local MCP assets."""
+    project = AgentProject.load(repo_root / "examples" / "agent_platform")
+
+    package_dir = build_source_package(project, output_dir=tmp_path / "package")
+    packaged_project = AgentProject.load(package_dir)
+
+    assert (package_dir / "evals" / "smoke.yaml").is_file()
+    assert (package_dir / "server" / "clock_mcp.py").is_file()
+    assert len(packaged_project.data.evals) == 1
+    assert "clock" in (packaged_project.data.mcp_config or {}).get("mcpServers", {})
+
+
+def test_build_source_package_keeps_assets_and_discovered_components(tmp_path: Path) -> None:
+    """Root copying retains arbitrary assets and conventionally discovered components."""
+    agent_dir = tmp_path / "agent"
+    project = _write_minimal_agent(agent_dir)
+    (agent_dir / "assets").mkdir()
+    (agent_dir / "assets" / "prompt.txt").write_text("runtime asset", encoding="utf-8")
+    (agent_dir / "skills" / "helper").mkdir(parents=True)
+    (agent_dir / "skills" / "helper" / "SKILL.md").write_text(
+        "---\nname: helper\ndescription: Helps.\n---\n\n# Helper\n",
+        encoding="utf-8",
+    )
+    (agent_dir / "subagents").mkdir()
+    (agent_dir / "subagents" / "reviewer.md").write_text(
+        "---\nname: reviewer\ndescription: Reviews.\n---\n\n# Reviewer\n",
+        encoding="utf-8",
+    )
     project = AgentProject.load(agent_dir)
 
-    with pytest.raises(DeployError, match="must be relative|escapes the agent directory"):
+    package_dir = build_source_package(project, output_dir=tmp_path / "package")
+    packaged_project = AgentProject.load(package_dir)
+
+    assert (package_dir / "assets" / "prompt.txt").read_text(encoding="utf-8") == "runtime asset"
+    assert "helper" in packaged_project.data.skills
+    assert "reviewer" in packaged_project.data.subagents
+
+
+def test_build_source_package_excludes_dev_and_secret_files(tmp_path: Path) -> None:
+    """Build, environment, virtualenv, cache, and bytecode files are not packaged."""
+    agent_dir = tmp_path / "agent"
+    project = _write_minimal_agent(agent_dir)
+    (agent_dir / ".env").write_text("TOKEN=secret\n", encoding="utf-8")
+    (agent_dir / ".venv" / "bin").mkdir(parents=True)
+    (agent_dir / ".venv" / "bin" / "python").write_text("binary", encoding="utf-8")
+    (agent_dir / "module.pyc").write_bytes(b"bytecode")
+
+    package_dir = build_source_package(project, output_dir=tmp_path / "package")
+
+    assert not (package_dir / ".env").exists()
+    assert not (package_dir / ".venv").exists()
+    assert not (package_dir / "module.pyc").exists()
+
+
+def test_build_source_package_rejects_symlinks(tmp_path: Path) -> None:
+    """Source package traversal rejects symlinks instead of following them."""
+    agent_dir = tmp_path / "agent"
+    project = _write_minimal_agent(agent_dir)
+    external = tmp_path / "secret.txt"
+    external.write_text("secret", encoding="utf-8")
+    (agent_dir / "linked-secret.txt").symlink_to(external)
+
+    with pytest.raises(DeployError, match="Symlinks are not allowed"):
         build_source_package(project, output_dir=tmp_path / "package")
 
 

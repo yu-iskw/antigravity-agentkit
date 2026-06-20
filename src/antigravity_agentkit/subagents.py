@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from antigravity_agentkit.exceptions import LoadError, ValidationError
+from antigravity_agentkit.paths import resolve_project_path
 from antigravity_agentkit.schema.agent import SubagentSpec
 from antigravity_agentkit.schema.subagents import DelegationToolMetadata, LoadedSubagent
 from antigravity_agentkit.skills import parse_frontmatter
@@ -48,7 +49,7 @@ def load_subagents_from_specs(
             continue
         if not spec.file:
             raise ValidationError(f"Markdown subagent '{spec.name}' missing 'file'")
-        path = (root / spec.file).resolve()
+        path = resolve_project_path(root, spec.file, label="Subagent file")
         subagent = load_subagent_md(path)
         if subagent.name != spec.name:
             raise ValidationError(
@@ -62,12 +63,15 @@ def load_subagents_from_specs(
 
 def discover_subagents(root: Path, subagents_dir: str = "subagents") -> dict[str, LoadedSubagent]:
     """Discover and load all markdown subagents under subagents/."""
-    base = root / subagents_dir
+    project_root = root.resolve()
+    base = resolve_project_path(project_root, subagents_dir, label="Subagents directory")
     if not base.is_dir():
         return {}
     subagents: dict[str, LoadedSubagent] = {}
     for path in sorted(base.glob("*.md")):
-        subagent = load_subagent_md(path)
+        relative_path = path.relative_to(project_root).as_posix()
+        resolved_path = resolve_project_path(project_root, relative_path, label="Subagent file")
+        subagent = load_subagent_md(resolved_path)
         subagents[subagent.name] = subagent
     return subagents
 

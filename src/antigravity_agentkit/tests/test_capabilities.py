@@ -32,8 +32,15 @@ def test_subagents_auto_enable() -> None:
 
 
 def test_default_capabilities_ir_is_default() -> None:
-    """Restricted mode without lists matches SDK defaults."""
+    """Restricted mode without subagents differs from the SDK default."""
     cap_ir = compile_capabilities_ir(CapabilitiesConfig(), has_subagents=False)
+
+    assert not capabilities_ir_is_default(cap_ir)
+
+
+def test_subagent_capabilities_ir_matches_sdk_default() -> None:
+    """Restricted mode with subagents matches the SDK's enabled default."""
+    cap_ir = compile_capabilities_ir(CapabilitiesConfig(), has_subagents=True)
 
     assert capabilities_ir_is_default(cap_ir)
 

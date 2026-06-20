@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from antigravity_agentkit.exceptions import LoadError, ValidationError
+from antigravity_agentkit.paths import resolve_project_path
 from antigravity_agentkit.schema.skills import (
     LoadedSkill,
     SkillFrontmatter,
@@ -84,22 +85,30 @@ def load_skills(root: Path, local_paths: list[str]) -> dict[str, LoadedSkill]:
     """Load local skill packages referenced in agent.yaml."""
     skills: dict[str, LoadedSkill] = {}
     for rel_path in local_paths:
-        skill_dir = (root / rel_path).resolve()
+        skill_dir = resolve_project_path(root, rel_path, label="Skill directory")
         if not skill_dir.is_dir():
             raise LoadError(f"Skill directory not found: {skill_dir}")
-        skill = load_skill_directory(skill_dir)
+        skill_path = resolve_project_path(
+            root,
+            (Path(rel_path) / SKILL_FILENAME).as_posix(),
+            label="Skill file",
+        )
+        skill = load_skill_md(skill_path)
         skills[skill.name] = skill
     return skills
 
 
 def discover_skills(root: Path, skills_dir: str = "skills") -> dict[str, LoadedSkill]:
     """Discover and load all skills under a skills/ directory."""
-    base = root / skills_dir
+    project_root = root.resolve()
+    base = resolve_project_path(project_root, skills_dir, label="Skills directory")
     if not base.is_dir():
         return {}
     skills: dict[str, LoadedSkill] = {}
     for skill_path in sorted(base.rglob(SKILL_FILENAME)):
-        skill = load_skill_md(skill_path)
+        relative_path = skill_path.relative_to(project_root).as_posix()
+        resolved_path = resolve_project_path(project_root, relative_path, label="Skill file")
+        skill = load_skill_md(resolved_path)
         skills[skill.name] = skill
     return skills
 

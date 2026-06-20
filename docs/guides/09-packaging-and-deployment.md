@@ -47,7 +47,7 @@ flowchart TB
 
 ## What `antigravity-agentkit package` produces
 
-The `package` command (and `build_source_package()` in the Python API) builds a self-contained source bundle under `.build/<agent-name>/` by default. The build directory is recreated on each run. **`deployment.yaml` must exist`** in the agent directory.
+The `package` command (and `build_source_package()` in the Python API) builds a self-contained source bundle under `.build/<agent-name>/` by default. The build directory is recreated on each run. **`deployment.yaml` must exist** in the agent directory.
 
 ```bash
 # From an agent directory that includes deployment.yaml (not the bundled examples/)
@@ -63,15 +63,19 @@ uv run antigravity-agentkit package path/to/my-agent --output-dir /tmp/my-agent-
 
 ### Package contents
 
-| File / directory                             | Purpose                                                            |
-| -------------------------------------------- | ------------------------------------------------------------------ |
-| `agent.yaml`                                 | Copied manifest                                                    |
-| `SYSTEM.md` (or your configured system file) | Copied system instructions                                         |
-| `mcp.json`, `policies.yaml`                  | Copied when declared in the manifest                               |
-| `skills/`, `subagents/`                      | Copied local skill and subagent files                              |
-| `agent.py`                                   | Generated runtime entrypoint exposing `root_agent`                 |
-| `requirements.txt`                           | Runtime dependency (`antigravity-agentkit[antigravity]`)           |
-| `metadata.json`                              | Build summary (agent name, compiled vertex/MCP/tool/policy counts) |
+The agent directory is the package boundary. AgentKit copies its complete contents so evals,
+local MCP server implementations, discovered skills/subagents, and other runtime assets retain
+their relative paths. It then writes or replaces these generated files:
+
+| File               | Purpose                                                            |
+| ------------------ | ------------------------------------------------------------------ |
+| `agent.py`         | Generated runtime entrypoint exposing `root_agent`                 |
+| `requirements.txt` | Runtime dependency (`antigravity-agentkit[antigravity]`)           |
+| `metadata.json`    | Build summary (agent name, compiled vertex/MCP/tool/policy counts) |
+
+Development and secret-bearing artifacts are excluded: `.build`, `.git`, virtual environments,
+tool caches, `__pycache__`, bytecode, `.DS_Store`, and `.env` files. Symbolic links are rejected
+rather than followed, and all copied paths must remain inside the agent directory.
 
 The generated entrypoint loads the package directory and creates an Antigravity SDK agent:
 

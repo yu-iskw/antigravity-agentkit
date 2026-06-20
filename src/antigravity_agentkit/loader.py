@@ -10,6 +10,7 @@ import yaml
 from pydantic import BaseModel
 
 from antigravity_agentkit.exceptions import LoadError
+from antigravity_agentkit.paths import resolve_project_path
 from antigravity_agentkit.schema.agent import AgentManifest, AgentProjectData
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.schema.evals import EvalSuite
@@ -98,7 +99,7 @@ def _load_evals(root: Path, eval_files: list[str]) -> list[dict[str, Any]]:
     """Load evaluation suite files."""
     evals: list[dict[str, Any]] = []
     for rel_path in eval_files:
-        path = (root / rel_path).resolve()
+        path = resolve_project_path(root, rel_path, label="Eval file")
         data, _ = _load_optional_yaml(path)
         if data is None:
             raise LoadError(f"Eval file not found: {path}")
@@ -145,20 +146,30 @@ def load_agent_directory(path: str | Path) -> AgentProjectData:
         raise LoadError(f"Agent directory not found: {root}")
 
     manifest, manifest_raw = load_agent_yaml(root / AGENT_FILENAME)
-    system_path = root / manifest.spec.instructions.system
+    system_path = resolve_project_path(
+        root,
+        manifest.spec.instructions.system,
+        label="System instructions",
+    )
     system_instructions = load_system_md(system_path)
 
     mcp_config: dict[str, Any] | None = None
     mcp_raw: str | None = None
     if manifest.spec.mcp:
-        mcp_path = root / manifest.spec.mcp.file
+        mcp_path = resolve_project_path(root, manifest.spec.mcp.file, label="MCP config")
         mcp_config, mcp_raw = _load_optional_json(mcp_path)
+        if mcp_config is None:
+            raise LoadError(f"MCP config not found: {mcp_path}")
 
     policies: dict[str, Any] | None = None
     policies_raw: str | None = None
     if manifest.spec.policies:
-        policies_path = root / manifest.spec.policies.file
+        policies_path = resolve_project_path(
+            root, manifest.spec.policies.file, label="Policies file"
+        )
         policies, policies_raw = _load_optional_yaml(policies_path)
+        if policies is None:
+            raise LoadError(f"Policies file not found: {policies_path}")
 
     skills = _load_skills(root, manifest)
     subagents = _load_subagents(root, manifest)

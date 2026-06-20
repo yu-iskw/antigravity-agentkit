@@ -169,7 +169,8 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 - **Implement** lifecycle: `agent.yaml` plus assets → load, validate, compile, run, eval (`AgentProject`); no `deployment.yaml` required.
 - **Ship** lifecycle: optional `deployment.yaml` is required for `package`, `deploy`, and `register`; packaging lives in `antigravity_agentkit.deploy`, not `AgentProject`.
 - `spec.deployment` was removed from `agent.yaml` (hard break); infra and deploy target belong in `deployment.yaml` only.
-- Bundled `examples/` agents (`hello_world`, `skills`, `subagents`, `mcp`) are implement-only demos and omit `deployment.yaml`.
+- Bundled implement-only examples (`hello_world`, `skills`, `subagents`, `mcp`) omit `deployment.yaml`; `examples/agent_platform/` is the ship-ready reference with `deployment.yaml` and package/deploy/register dry-run.
+- Local ship verification: `bash dev/test_agent_platform.sh` exercises the full `examples/agent_platform/` workflow and is used by `.github/workflows/agent_ship.yml`.
 - Example default model is `gemini-3.1-flash-lite`; live `run` in `dev/test_examples.sh` needs `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
 - Canonical deploy target is `agent-platform`; `gemini-api`, `ai-studio`, and `cloud-run` are schema stubs until adapters land.
 - P0 SDK emitter wires capabilities, MCP HTTP with per-server tool filters, subagent `SubagentConfig`, and `run --interactive` HITL through `compile_to_sdk_config`.
