@@ -10,20 +10,21 @@ Step-by-step documentation for authoring, validating, packaging, deploying, and 
 
 ## Guide index
 
-| #   | Guide                                                      | What you will learn                                               |
-| --- | ---------------------------------------------------------- | ----------------------------------------------------------------- |
-| 01  | [Getting started](01-getting-started.md)                   | Install AgentKit, verify the CLI, understand the compile pipeline |
-| 02  | [Your first agent](02-your-first-agent.md)                 | Scaffold, validate, compile, and run a minimal agent              |
-| 03  | [Agent manifest reference](03-agent-manifest-reference.md) | Every `agent.yaml` field, minimal vs production manifests         |
-| 04  | [System instructions](04-system-instructions.md)           | Writing effective `SYSTEM.md` for governed agents                 |
-| 05  | [MCP integration](05-mcp-integration.md)                   | `mcp.json`, admission policies, MCP security rules                |
-| 06  | [Skills and subagents](06-skills-and-subagents.md)         | `SKILL.md` packages, skill index, markdown subagents              |
-| 07  | [Policies and governance](07-policies-and-governance.md)   | `policies.yaml`, default deny, validation profiles                |
-| 08  | [Validation and evals](08-validation-and-evals.md)         | Validation levels, eval suites, CI gates                          |
-| 09  | [Packaging and deployment](09-packaging-and-deployment.md) | Source packages, deployment spec, dry-run deploy                  |
-| 10  | [Registry and publishing](10-registry-and-publishing.md)   | Agent Registry metadata, Skill Registry zip, `skills.lock`        |
-| 11  | [Python API](11-python-api.md)                             | `AgentProject`, `RuntimeAgent`, programmatic workflows            |
-| 12  | [Production workflows](12-production-workflows.md)         | CI pipelines, dev→prod promotion, GitOps, checklist               |
+| #   | Guide                                                        | What you will learn                                               |
+| --- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| 01  | [Getting started](01-getting-started.md)                     | Install AgentKit, verify the CLI, understand the compile pipeline |
+| 02  | [Your first agent](02-your-first-agent.md)                   | Scaffold, validate, compile, and run a minimal agent              |
+| 03  | [Agent manifest reference](03-agent-manifest-reference.md)   | Every `agent.yaml` field, minimal vs production manifests         |
+| 04  | [System instructions](04-system-instructions.md)             | Writing effective `SYSTEM.md` for governed agents                 |
+| 05  | [MCP integration](05-mcp-integration.md)                     | `mcp.json`, admission policies, MCP security rules                |
+| 06  | [Skills and subagents](06-skills-and-subagents.md)           | `SKILL.md` packages, skill index, markdown subagents              |
+| 07  | [Policies and governance](07-policies-and-governance.md)     | `policies.yaml`, default deny, validation profiles                |
+| 08  | [Validation and evals](08-validation-and-evals.md)           | Validation levels, eval suites, CI gates                          |
+| 09  | [Packaging and deployment](09-packaging-and-deployment.md)   | Source packages, deployment spec, dry-run deploy                  |
+| 10  | [Registry and publishing](10-registry-and-publishing.md)     | Agent Registry metadata, Skill Registry zip, `skills.lock`        |
+| 11  | [Python API](11-python-api.md)                               | `AgentProject`, `RuntimeAgent`, programmatic workflows            |
+| 12  | [Production workflows](12-production-workflows.md)           | CI pipelines, dev→prod promotion, GitOps, checklist               |
+| 13  | [Agent Platform evaluation](13-agent-platform-evaluation.md) | Two-layer eval: AgentKit mock gates + Platform quality loop       |
 
 ## Suggested learning paths
 
@@ -46,6 +47,7 @@ Step-by-step documentation for authoring, validating, packaging, deploying, and 
 1. [Packaging and deployment](09-packaging-and-deployment.md)
 2. [Registry and publishing](10-registry-and-publishing.md)
 3. [Production workflows](12-production-workflows.md)
+4. [Agent Platform evaluation](13-agent-platform-evaluation.md)
 
 ### Path D — Embed in apps or CI
 

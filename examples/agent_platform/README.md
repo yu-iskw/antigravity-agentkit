@@ -52,6 +52,18 @@ antigravity-agentkit register examples/agent_platform \
 
 Artifacts land under `examples/agent_platform/.build/`.
 
+## Post-deploy evaluation
+
+`antigravity-agentkit eval` runs **mock-mode** governance checks in CI — it does not call Agent Platform evaluation APIs.
+
+After your platform team deploys the `.build/` bundle to Agent Runtime:
+
+1. Enable GenAI OpenTelemetry on the runtime (see [Agent Platform evaluation](../../docs/guides/13-agent-platform-evaluation.md)).
+2. Run offline, simulated, or online evaluation via the Google Cloud console or Agent Platform SDK.
+3. Seed Platform test cases from `evals/smoke.yaml` inputs (for example, “What is the current UTC time?”) until an automated exporter exists.
+
+Full workflow and diagrams: [docs/guides/13-agent-platform-evaluation.md](../../docs/guides/13-agent-platform-evaluation.md).
+
 ## Repository verification
 
 Runs validate, compile, eval, optional live `run` (when an API key is set), package, deploy dry-run, and register against `examples/agent_platform/`:
@@ -60,4 +72,4 @@ Runs validate, compile, eval, optional live `run` (when an API key is set), pack
 bash dev/test_agent_platform.sh
 ```
 
-See also [Packaging and deployment](../../docs/guides/09-packaging-and-deployment.md) and [Production workflows](../../docs/guides/12-production-workflows.md).
+See also [Packaging and deployment](../../docs/guides/09-packaging-and-deployment.md), [Production workflows](../../docs/guides/12-production-workflows.md), and [Agent Platform evaluation](../../docs/guides/13-agent-platform-evaluation.md).

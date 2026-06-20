@@ -281,9 +281,11 @@ flowchart LR
 4. `antigravity-agentkit deploy <path> --project ... --location ... --dry-run`.
 5. Commit or apply `deployment-config.json` through your platform pipeline.
 6. [Register](10-registry-and-publishing.md) agent metadata for inventory.
+7. Platform team runs [Agent Platform evaluation](13-agent-platform-evaluation.md) on the deployed runtime (offline, simulated, or online monitors).
 
 ## Related guides
 
 - [Python API](11-python-api.md) — `build_source_package()`, `build_deployment_config()`, `deploy()`
 - [Registry and publishing](10-registry-and-publishing.md) — post-deploy inventory
 - [Production workflows](12-production-workflows.md) — CI/CD and dev→prod promotion
+- [Agent Platform evaluation](13-agent-platform-evaluation.md) — post-deploy quality loop

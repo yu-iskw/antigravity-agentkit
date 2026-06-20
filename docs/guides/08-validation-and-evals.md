@@ -234,6 +234,12 @@ uv run antigravity-agentkit eval "${AGENT_DIR}"
 
 Integrate these commands into GitHub Actions, Cloud Build, or any CI runner that has Python and `uv` available. The repository's own test workflow runs `uv run bash dev/test_python.sh`, which includes unit tests for validation and eval logic.
 
+## Beyond mock mode
+
+Mock evals are fast CI gates for governance assertions — they do **not** measure model quality or run against a live agent. After you ship to Agent Runtime, platform teams run **Agent Platform evaluation** (offline traces, simulated multi-turn eval, online monitors) using the console or Agent Platform SDK.
+
+AgentKit stays out of that path per [ADR 0003](../adr/0003-agent-platform-boundary.md). See [Agent Platform evaluation](13-agent-platform-evaluation.md) for the two-layer workflow, diagrams, and post-deploy checklist.
+
 ## JSON Schema reference
 
 Formal schemas for manifest and eval structures live under [`docs/schemas/`](../schemas/):

@@ -25,7 +25,10 @@ sequenceDiagram
     AK->>Art: .build/agent/, deployment-config.json, registry-metadata.json
     CI->>Plat: Upload artifacts + apply deploy
     Plat->>Plat: Agent Runtime + Gateway + Registry
+    Plat->>Plat: Agent Platform eval on deployed runtime
 ```
+
+Mock `eval` runs in CI only. [Agent Platform evaluation](13-agent-platform-evaluation.md) (offline, simulated, online monitors) is a post-deploy step for the platform team.
 
 Reference implementation in this repository:
 
@@ -51,6 +54,7 @@ Before any production deploy or registry publish, confirm:
 - [ ] `antigravity-agentkit register` metadata is archived for Agent Registry
 - [ ] Published skills are pinned in `skills.lock` ([Registry guide](10-registry-and-publishing.md))
 - [ ] Runtime and deployer GCP identities are separated
+- [ ] Platform team runs [Agent Platform evaluation](13-agent-platform-evaluation.md) after deploy (when quality gates are required)
 
 ---
 
@@ -181,7 +185,7 @@ Treat the agent directory as the source of truth. CI produces immutable artifact
 ```mermaid
 flowchart TB
   GIT[Git push] --> V[validate full + prod profile]
-  V --> E[eval]
+  V --> E[eval mock]
   E --> P[package]
   P --> D[deploy --dry-run]
   D --> R[register]
@@ -189,18 +193,22 @@ flowchart TB
   ART --> GITOPS[GitOps / Terraform apply]
   GITOPS --> RT[Agent Runtime]
   GITOPS --> REG[Agent Registry]
+  RT --> PE[Platform eval]
 ```
+
+Mock `eval` gates every PR. [Agent Platform evaluation](13-agent-platform-evaluation.md) runs after `RT` is live.
 
 ### Step-by-step
 
-| Step                | Command                                                                                                   | Artifact                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 1. Validate         | `antigravity-agentkit validate ./agents/my-agent --level full --profile prod-readonly`                    | —                                              |
-| 2. Eval             | `antigravity-agentkit eval ./agents/my-agent`                                                             | eval report in CI logs                         |
-| 3. Package          | `antigravity-agentkit package ./agents/my-agent`                                                          | `.build/my-agent/`                             |
-| 4. Deploy (dry-run) | `antigravity-agentkit deploy ./agents/my-agent -p $PROJECT -l $REGION --dry-run`                          | `deployment-config.json`                       |
-| 5. Register         | `antigravity-agentkit register ./agents/my-agent -p $PROJECT -l $REGION -o .build/registry-metadata.json` | registry JSON                                  |
-| 6. Skills (if any)  | `antigravity-agentkit publish-skill ./agents/my-agent/skills/foo -p $PROJECT -l $REGION`                  | `.build/skills/foo.zip` + update `skills.lock` |
+| Step                | Command                                                                                                   | Artifact                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 1. Validate         | `antigravity-agentkit validate ./agents/my-agent --level full --profile prod-readonly`                    | —                                                                         |
+| 2. Eval             | `antigravity-agentkit eval ./agents/my-agent`                                                             | eval report in CI logs                                                    |
+| 3. Package          | `antigravity-agentkit package ./agents/my-agent`                                                          | `.build/my-agent/`                                                        |
+| 4. Deploy (dry-run) | `antigravity-agentkit deploy ./agents/my-agent -p $PROJECT -l $REGION --dry-run`                          | `deployment-config.json`                                                  |
+| 5. Register         | `antigravity-agentkit register ./agents/my-agent -p $PROJECT -l $REGION -o .build/registry-metadata.json` | registry JSON                                                             |
+| 6. Skills (if any)  | `antigravity-agentkit publish-skill ./agents/my-agent/skills/foo -p $PROJECT -l $REGION`                  | `.build/skills/foo.zip` + update `skills.lock`                            |
+| 7. Platform eval    | Console or Agent Platform SDK after Runtime deploy                                                        | Traces, metrics, loss clusters ([guide](13-agent-platform-evaluation.md)) |
 
 ### GitOps repository layout
 
@@ -258,6 +266,7 @@ metadata["packageDir"] = deploy_result["package_dir"]
 - Register every production agent with `antigravity-agentkit register` and store JSON in your catalog.
 - Register MCP servers listed in the `registry.mcpServers` array when `spec.registry.mcpServers.register` is true in your process.
 - Re-run [evals](08-validation-and-evals.md) on policy or MCP changes.
+- Run [Agent Platform evaluation](13-agent-platform-evaluation.md) on deployed agents for quality drift and regression.
 
 ### Rollback
 
@@ -274,18 +283,19 @@ metadata["packageDir"] = deploy_result["package_dir"]
 
 ## Guide index (quick links)
 
-| Topic              | Guide                                                      |
-| ------------------ | ---------------------------------------------------------- |
-| First steps        | [Getting started](01-getting-started.md)                   |
-| First agent        | [Your first agent](02-your-first-agent.md)                 |
-| `agent.yaml`       | [Agent manifest reference](03-agent-manifest-reference.md) |
-| Instructions       | [System instructions](04-system-instructions.md)           |
-| Skills / subagents | [Skills and subagents](06-skills-and-subagents.md)         |
-| MCP                | [MCP integration](05-mcp-integration.md)                   |
-| Policies           | [Policies and governance](07-policies-and-governance.md)   |
-| Validation / evals | [Validation and evals](08-validation-and-evals.md)         |
-| Deploy             | [Packaging and deployment](09-packaging-and-deployment.md) |
-| Registry           | [Registry and publishing](10-registry-and-publishing.md)   |
-| API                | [Python API](11-python-api.md)                             |
+| Topic              | Guide                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| First steps        | [Getting started](01-getting-started.md)                     |
+| First agent        | [Your first agent](02-your-first-agent.md)                   |
+| `agent.yaml`       | [Agent manifest reference](03-agent-manifest-reference.md)   |
+| Instructions       | [System instructions](04-system-instructions.md)             |
+| Skills / subagents | [Skills and subagents](06-skills-and-subagents.md)           |
+| MCP                | [MCP integration](05-mcp-integration.md)                     |
+| Policies           | [Policies and governance](07-policies-and-governance.md)     |
+| Validation / evals | [Validation and evals](08-validation-and-evals.md)           |
+| Deploy             | [Packaging and deployment](09-packaging-and-deployment.md)   |
+| Registry           | [Registry and publishing](10-registry-and-publishing.md)     |
+| API                | [Python API](11-python-api.md)                               |
+| Platform eval      | [Agent Platform evaluation](13-agent-platform-evaluation.md) |
 
 Design background: [RFC 0001](../rfcs/0001-declarative-antigravity-agentkit.md).
