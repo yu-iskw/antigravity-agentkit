@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -35,6 +36,39 @@ def test_cli_validate_fails_for_missing_agent(tmp_path: Path) -> None:
     result = runner.invoke(app, ["validate", str(tmp_path / "missing-agent")])
 
     assert result.exit_code == 1
+
+
+def test_cli_validate_reports_invalid_mcp_schema(tmp_path: Path) -> None:
+    """Invalid MCP fields produce diagnostics instead of a Pydantic traceback."""
+    agent_dir = tmp_path / "broken-agent"
+    agent_dir.mkdir()
+    (agent_dir / "SYSTEM.md").write_text("# Agent\n", encoding="utf-8")
+    (agent_dir / "agent.yaml").write_text(
+        "\n".join(
+            [
+                "apiVersion: antigravity-agentkit.dev/v1alpha1",
+                "kind: Agent",
+                "metadata:",
+                "  name: broken-agent",
+                "spec:",
+                "  instructions:",
+                "    system: SYSTEM.md",
+                "  mcp:",
+                "    file: mcp.json",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (agent_dir / "mcp.json").write_text(
+        json.dumps({"mcpServers": {"broken": {"command": ""}}}),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["validate", str(agent_dir), "--level", "schema"])
+
+    assert result.exit_code == 1
+    assert "AGK-MCP-002" in result.stdout
+    assert "Traceback" not in result.stdout
 
 
 def test_cli_validate_prod_profile_reports_errors(hello_world_agent_dir: Path) -> None:

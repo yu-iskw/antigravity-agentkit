@@ -19,6 +19,29 @@ from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.tests.constants import TEST_GCP_LOCATION, TEST_GCP_PROJECT
 
 
+def _write_minimal_agent(agent_dir: Path, system_path: str = "SYSTEM.md") -> AgentProject:
+    """Create and load a minimal agent project for packaging tests."""
+    agent_dir.mkdir()
+    system_file = agent_dir / system_path
+    system_file.parent.mkdir(parents=True, exist_ok=True)
+    system_file.write_text("# Agent\n", encoding="utf-8")
+    (agent_dir / "agent.yaml").write_text(
+        "\n".join(
+            [
+                "apiVersion: antigravity-agentkit.dev/v1alpha1",
+                "kind: Agent",
+                "metadata:",
+                "  name: test-agent",
+                "spec:",
+                "  instructions:",
+                f"    system: {system_path}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return AgentProject.load(agent_dir)
+
+
 def test_load_deployment_parses_ship_fixture(ship_deployment: DeploymentManifest) -> None:
     """ship_agent fixture deployment.yaml loads successfully."""
     assert ship_deployment.metadata.name == "ship-agent"
@@ -64,6 +87,81 @@ def test_build_source_package_writes_expected_files(ship_project: AgentProject) 
     assert (package_dir / "requirements.txt").read_text(encoding="utf-8") == (
         "antigravity-agentkit[antigravity]\n"
     )
+
+
+def test_build_source_package_rejects_unsafe_output_paths(tmp_path: Path) -> None:
+    """Package output cannot delete the project, an ancestor, or source directories."""
+    agent_dir = tmp_path / "agent"
+    project = _write_minimal_agent(agent_dir)
+    source_dir = agent_dir / "assets"
+    source_dir.mkdir()
+    sentinel = source_dir / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+
+    for output_dir in (agent_dir, tmp_path, source_dir):
+        with pytest.raises(DeployError, match="Package output"):
+            build_source_package(project, output_dir=output_dir)
+        assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def test_build_source_package_supports_external_output(tmp_path: Path) -> None:
+    """A package may be written outside the agent project."""
+    project = _write_minimal_agent(tmp_path / "agent")
+
+    package_dir = build_source_package(project, output_dir=tmp_path / "package")
+
+    assert package_dir == (tmp_path / "package").resolve()
+    assert (package_dir / "agent.py").is_file()
+
+
+def test_build_source_package_copies_nested_manifest_files(tmp_path: Path) -> None:
+    """Nested system, MCP, and policy paths retain their package layout."""
+    agent_dir = tmp_path / "agent"
+    project = _write_minimal_agent(agent_dir, "config/SYSTEM.md")
+    (agent_dir / "config" / "mcp.json").write_text(
+        json.dumps({"mcpServers": {"clock": {"command": "python3"}}}),
+        encoding="utf-8",
+    )
+    (agent_dir / "config" / "policies.yaml").write_text(
+        "default: allow\n",
+        encoding="utf-8",
+    )
+    manifest_path = agent_dir / "agent.yaml"
+    manifest_path.write_text(
+        manifest_path.read_text(encoding="utf-8")
+        + "\n  mcp:\n    file: config/mcp.json\n"
+        + "  policies:\n    file: config/policies.yaml\n",
+        encoding="utf-8",
+    )
+    project = AgentProject.load(agent_dir)
+
+    package_dir = build_source_package(project, output_dir=tmp_path / "package")
+
+    assert (package_dir / "config" / "SYSTEM.md").is_file()
+    assert (package_dir / "config" / "mcp.json").is_file()
+    assert (package_dir / "config" / "policies.yaml").is_file()
+
+
+@pytest.mark.parametrize("path_kind", ["traversal", "absolute"])
+def test_build_source_package_rejects_escaping_source_paths(
+    tmp_path: Path,
+    path_kind: str,
+) -> None:
+    """Package file references must remain relative to the agent directory."""
+    agent_dir = tmp_path / "agent"
+    external_system = tmp_path / "external-SYSTEM.md"
+    external_system.write_text("# Agent\n", encoding="utf-8")
+    system_path = str(external_system) if path_kind == "absolute" else "../external-SYSTEM.md"
+    project = _write_minimal_agent(agent_dir)
+    manifest_path = agent_dir / "agent.yaml"
+    manifest_path.write_text(
+        manifest_path.read_text(encoding="utf-8").replace("SYSTEM.md", system_path),
+        encoding="utf-8",
+    )
+    project = AgentProject.load(agent_dir)
+
+    with pytest.raises(DeployError, match="must be relative|escapes the agent directory"):
+        build_source_package(project, output_dir=tmp_path / "package")
 
 
 def test_build_deployment_config_includes_scaling_gateway_and_identity(

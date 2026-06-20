@@ -50,11 +50,17 @@ class McpServerConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_transport(self) -> McpServerConfig:
-        """Require exactly one of url (HTTP) or command (stdio)."""
+        """Validate transport selection and SDK-supported server options."""
         has_url = bool(self.url)
         has_command = bool(self.command)
         if has_url == has_command:
             msg = "MCP server must declare exactly one of 'url' or 'command'."
+            raise ValueError(msg)
+        if self.enabled_tools and self.disabled_tools:
+            msg = "MCP server enabledTools and disabledTools are mutually exclusive."
+            raise ValueError(msg)
+        if self.env_from_secret_manager:
+            msg = "MCP server envFromSecretManager is not supported by the current Antigravity SDK."
             raise ValueError(msg)
         return self
 

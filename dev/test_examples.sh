@@ -21,12 +21,12 @@ MODULE_DIR="$(dirname "${SCRIPT_DIR}")"
 cd "${MODULE_DIR}"
 
 CLI=(uv run antigravity-agentkit)
-EXAMPLES=(hello_world skills subagents mcp)
+EXAMPLES=(hello_world skills subagents mcp agent_platform)
 
 echo "==> validate examples"
 for name in "${EXAMPLES[@]}"; do
 	path="examples/${name}"
-	if [[ ${name} == "mcp" ]]; then
+	if [[ ${name} == "mcp" || ${name} == "agent_platform" ]]; then
 		"${CLI[@]}" validate "${path}" --level full --profile dev-open
 	else
 		"${CLI[@]}" validate "${path}"
@@ -40,8 +40,9 @@ for name in "${EXAMPLES[@]}"; do
 	echo "    wrote ${out}"
 done
 
-echo "==> eval mcp example"
+echo "==> eval mcp and agent_platform examples"
 "${CLI[@]}" eval examples/mcp
+"${CLI[@]}" eval examples/agent_platform
 
 api_key="${GEMINI_API_KEY:-${GOOGLE_API_KEY-}}"
 if [[ -n ${api_key} ]]; then
@@ -51,6 +52,7 @@ if [[ -n ${api_key} ]]; then
 		"skills|Say hello in one short sentence."
 		"subagents|Say hello in one short sentence."
 		"mcp|Say hello in one short sentence."
+		"agent_platform|Say hello in one short sentence."
 	)
 	for entry in "${LIVE_PROMPTS[@]}"; do
 		name="${entry%%|*}"

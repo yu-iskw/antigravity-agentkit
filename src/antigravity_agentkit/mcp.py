@@ -7,7 +7,14 @@ import re
 from pathlib import Path
 from typing import Any
 
-from antigravity_agentkit.exceptions import LoadError, SecurityValidationError, ValidationError
+from pydantic import ValidationError as PydanticValidationError
+
+from antigravity_agentkit.exceptions import (
+    CompilationError,
+    LoadError,
+    SecurityValidationError,
+    ValidationError,
+)
 from antigravity_agentkit.schema.mcp import McpConfig, McpServerConfig
 
 SECRET_KEY_PATTERN = re.compile(
@@ -34,12 +41,15 @@ def parse_mcp_json(path: Path) -> McpConfig:
         raise LoadError(f"Invalid JSON in {path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise LoadError(f"MCP config must be a JSON object: {path}")
-    return McpConfig.from_dict(raw)
+    return parse_mcp_dict(raw)
 
 
 def parse_mcp_dict(data: dict[str, Any]) -> McpConfig:
     """Parse mcp.json content from a dictionary."""
-    return McpConfig.from_dict(data)
+    try:
+        return McpConfig.from_dict(data)
+    except PydanticValidationError as exc:
+        raise ValidationError(f"Invalid MCP configuration: {exc}") from exc
 
 
 def _looks_like_secret(key: str, value: str) -> bool:
@@ -117,7 +127,7 @@ def validate_mcp_security(
 
     Rejects shell -c invocations, inline secrets, and unpinned npx -y usage.
     """
-    config = mcp_config if isinstance(mcp_config, McpConfig) else McpConfig.from_dict(mcp_config)
+    config = mcp_config if isinstance(mcp_config, McpConfig) else parse_mcp_dict(mcp_config)
     errors: list[str] = []
 
     for name, server in config.mcp_servers.items():
@@ -173,12 +183,19 @@ def compile_mcp_server_dict(name: str, server: McpServerConfig) -> dict[str, Any
 
 def compile_mcp_servers(mcp_config: McpConfig | dict[str, Any]) -> list[dict[str, Any]]:
     """Compile mcp.json to runtime-compatible server dictionaries."""
-    config = mcp_config if isinstance(mcp_config, McpConfig) else McpConfig.from_dict(mcp_config)
+    config = mcp_config if isinstance(mcp_config, McpConfig) else parse_mcp_dict(mcp_config)
     return [compile_mcp_server_dict(name, server) for name, server in config.mcp_servers.items()]
 
 
 def _sdk_kwargs_from_server_dict(server: dict[str, Any]) -> dict[str, Any]:
     """Build SDK MCP server constructor kwargs from a compiled server dict."""
+    if server.get("envFromSecretManager"):
+        raise CompilationError(
+            "MCP server envFromSecretManager is not supported by the current Antigravity SDK."
+        )
+    if server.get("enabledTools") and server.get("disabledTools"):
+        raise CompilationError("MCP server enabledTools and disabledTools are mutually exclusive.")
+
     kwargs: dict[str, Any] = {"name": server["name"]}
     if server.get("enabledTools"):
         kwargs["enabled_tools"] = list(server["enabledTools"])
@@ -227,9 +244,6 @@ def validate_mcp_json(path: Path, *, production: bool = False) -> McpConfig:
 
 def validate_mcp_dict(data: dict[str, Any], *, production: bool = False) -> McpConfig:
     """Parse and validate mcp.json content from a dictionary."""
-    try:
-        config = McpConfig.from_dict(data)
-    except Exception as exc:
-        raise ValidationError(f"Invalid MCP configuration: {exc}") from exc
+    config = parse_mcp_dict(data)
     assert_mcp_security(config, production=production)
     return config

@@ -4,12 +4,13 @@ Runnable example agents for learning and verification. Each example sets `spec.r
 
 ## Layout
 
-| Directory                      | Demonstrates                                       |
-| ------------------------------ | -------------------------------------------------- |
-| [`hello_world/`](hello_world/) | Minimal `agent.yaml` + `SYSTEM.md`                 |
-| [`skills/`](skills/)           | Local `SKILL.md` packages and `read_skill`         |
-| [`subagents/`](subagents/)     | Markdown subagent delegation tools                 |
-| [`mcp/`](mcp/)                 | MCP server, policies, skills, subagents, and evals |
+| Directory                            | Demonstrates                                                    |
+| ------------------------------------ | --------------------------------------------------------------- |
+| [`hello_world/`](hello_world/)       | Minimal `agent.yaml` + `SYSTEM.md`                              |
+| [`skills/`](skills/)                 | Local `SKILL.md` packages and `read_skill`                      |
+| [`subagents/`](subagents/)           | Markdown subagent delegation tools                              |
+| [`mcp/`](mcp/)                       | MCP server, policies, skills, subagents, and evals              |
+| [`agent_platform/`](agent_platform/) | Enterprise reference with `deployment.yaml` and ship dry-run CI |
 
 ## Prerequisites
 
@@ -20,7 +21,7 @@ Runnable example agents for learning and verification. Each example sets `spec.r
 
 Validation and compile work without the SDK or API key. `run` requires both.
 
-Examples under `examples/` are **implement-only** (validate, compile, run, eval). They do not include `deployment.yaml` — ship commands (`package`, `deploy`, `register`) are for your own agent directories, not the bundled demos.
+Most examples under `examples/` are **implement-only** (validate, compile, run, eval) and omit `deployment.yaml`. The [`agent_platform/`](agent_platform/) example is the **ship-ready** reference: it includes `deployment.yaml` and demonstrates `package`, `deploy --dry-run`, and `register` without a live platform deploy.
 
 ## Quick commands
 

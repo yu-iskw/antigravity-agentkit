@@ -7,11 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from antigravity_agentkit.exceptions import SecurityValidationError
+from antigravity_agentkit.exceptions import (
+    CompilationError,
+    SecurityValidationError,
+    ValidationError,
+)
 from antigravity_agentkit.mcp import (
     assert_mcp_security,
     compile_mcp_servers,
     parse_mcp_dict,
+    try_compile_mcp_sdk_objects_from_compiled,
     validate_mcp_security,
 )
 
@@ -207,4 +212,60 @@ def test_rejects_mcp_server_with_both_transports() -> None:
                     }
                 }
             }
+        )
+
+
+def test_parse_mcp_dict_normalizes_schema_errors() -> None:
+    """Pydantic schema failures are exposed as AgentKit validation errors."""
+    with pytest.raises(ValidationError, match="Invalid MCP configuration"):
+        parse_mcp_dict({"mcpServers": {"broken": {"command": ""}}})
+
+
+def test_rejects_both_enabled_and_disabled_tools() -> None:
+    """MCP tool allowlists and denylists are mutually exclusive."""
+    with pytest.raises(ValidationError, match="mutually exclusive"):
+        parse_mcp_dict(
+            {
+                "mcpServers": {
+                    "broken": {
+                        "command": "python3",
+                        "enabledTools": ["read"],
+                        "disabledTools": ["write"],
+                    }
+                }
+            }
+        )
+
+
+def test_rejects_secret_manager_bindings() -> None:
+    """Secret Manager bindings fail clearly until the SDK supports them."""
+    with pytest.raises(ValidationError, match="envFromSecretManager.*not supported"):
+        parse_mcp_dict(
+            {
+                "mcpServers": {
+                    "broken": {
+                        "command": "python3",
+                        "envFromSecretManager": {
+                            "API_KEY": "projects/test/secrets/key/versions/latest"
+                        },
+                    }
+                }
+            }
+        )
+
+
+def test_sdk_emitter_rejects_secret_manager_bindings_in_compiled_ir() -> None:
+    """Hand-built MCP IR cannot silently drop Secret Manager bindings."""
+    with pytest.raises(CompilationError, match="envFromSecretManager.*not supported"):
+        try_compile_mcp_sdk_objects_from_compiled(
+            [
+                {
+                    "name": "broken",
+                    "transport": "stdio",
+                    "command": "python3",
+                    "envFromSecretManager": {
+                        "API_KEY": "projects/test/secrets/key/versions/latest"
+                    },
+                }
+            ]
         )

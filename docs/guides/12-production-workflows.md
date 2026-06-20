@@ -29,7 +29,8 @@ sequenceDiagram
 
 Reference implementation in this repository:
 
-- **Fixture:** [`src/antigravity_agentkit/tests/fixtures/ship_agent/`](../../src/antigravity_agentkit/tests/fixtures/ship_agent/) (implement + `deployment.yaml`)
+- **Example:** [`examples/agent_platform/`](../../examples/agent_platform/) — canonical enterprise reference (governed agent + `deployment.yaml`)
+- **Fixture:** [`src/antigravity_agentkit/tests/fixtures/ship_agent/`](../../src/antigravity_agentkit/tests/fixtures/ship_agent/) — minimal ship tests
 - **Script:** [`dev/test_ship_agent.sh`](../../dev/test_ship_agent.sh)
 - **Workflow:** [`.github/workflows/agent_ship.yml`](../../.github/workflows/agent_ship.yml) — runs AgentKit steps and uploads `.build/` artifacts; platform apply is a documented placeholder for Agents CLI or GitOps.
 

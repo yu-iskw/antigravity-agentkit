@@ -1,0 +1,23 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: platform-assistant
+  namespace: platform-assistant-demo
+spec:
+  target: agent-platform
+  displayName: Platform Assistant
+  serviceAccount: platform-assistant@demo-project.iam.gserviceaccount.com
+  minInstances: 0
+  maxInstances: 3
+  containerConcurrency: 2
+  resourceLimits:
+    cpu: "1"
+    memory: 512Mi
+  labels:
+    env: demo
+    tier: ship-demo
+  gateway:
+    enabled: true
+    egressPolicy: restricted
+    requiredEndpoints:
+      - https://generativelanguage.googleapis.com

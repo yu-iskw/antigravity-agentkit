@@ -34,11 +34,7 @@ The [mcp example](../../examples/mcp/) example wires MCP, admission policy, and 
       "env": {
         "KEY": "value"
       },
-      "envFromSecretManager": {
-        "SECRET_KEY": "projects/my-project/secrets/my-secret/versions/latest"
-      },
-      "enabledTools": ["tool_a"],
-      "disabledTools": ["tool_b"]
+      "enabledTools": ["tool_a"]
     },
     "<remote-server>": {
       "url": "https://example.com/mcp",
@@ -51,19 +47,20 @@ The [mcp example](../../examples/mcp/) example wires MCP, admission policy, and 
 }
 ```
 
-| Field                  | Required  | Description                                                    |
-| ---------------------- | --------- | -------------------------------------------------------------- |
-| `mcpServers`           | Yes       | Map of server name → server config                             |
-| `command`              | For stdio | Executable to spawn (e.g. `uvx`, `npx`, `node`)                |
-| `url`                  | For HTTP  | Streamable HTTP MCP endpoint                                   |
-| `args`                 | No        | Command-line arguments (stdio only)                            |
-| `env`                  | No        | Environment variables passed to the server process (stdio)     |
-| `headers`              | No        | HTTP headers for remote MCP servers                            |
-| `envFromSecretManager` | No        | Secret Manager references (compiled to `envFromSecretManager`) |
-| `enabledTools`         | No        | Allowlist of MCP tool names exposed to the agent               |
-| `disabledTools`        | No        | Denylist of MCP tool names hidden from the agent               |
+| Field                  | Required  | Description                                                 |
+| ---------------------- | --------- | ----------------------------------------------------------- |
+| `mcpServers`           | Yes       | Map of server name → server config                          |
+| `command`              | For stdio | Executable to spawn (e.g. `uvx`, `npx`, `node`)             |
+| `url`                  | For HTTP  | Streamable HTTP MCP endpoint                                |
+| `args`                 | No        | Command-line arguments (stdio only)                         |
+| `env`                  | No        | Environment variables passed to the server process (stdio)  |
+| `headers`              | No        | HTTP headers for remote MCP servers                         |
+| `envFromSecretManager` | Reserved  | Rejected until the Antigravity SDK supports secret bindings |
+| `enabledTools`         | No        | Allowlist of MCP tool names exposed to the agent            |
+| `disabledTools`        | No        | Denylist of MCP tool names hidden from the agent            |
 
 Each server entry must declare **exactly one** transport: `command` (stdio) or `url` (HTTP), not both.
+`enabledTools` and `disabledTools` are also mutually exclusive on each server.
 
 Server names become part of tool identifiers at runtime. A tool exposed by the `bigquery-metadata` server is referenced as `mcp.bigquery-metadata.<tool_name>` in policies and subagent tool lists.
 
@@ -158,7 +155,8 @@ Environment values that look like secrets are rejected. Detection covers:
 }
 ```
 
-Or use `envFromSecretManager` for Google Cloud Secret Manager paths.
+`envFromSecretManager` is reserved for future SDK support. Current releases reject non-empty
+bindings during validation so credentials cannot be silently omitted at runtime.
 
 ### Pin npx packages
 
