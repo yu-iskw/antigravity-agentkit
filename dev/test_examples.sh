@@ -21,7 +21,7 @@ MODULE_DIR="$(dirname "${SCRIPT_DIR}")"
 cd "${MODULE_DIR}"
 
 CLI=(uv run antigravity-agentkit)
-EXAMPLES=(hello_world skills subagents mcp agent_platform)
+EXAMPLES=(hello_world skills subagents mcp agent_platform gemini_api)
 
 echo "==> validate examples"
 for name in "${EXAMPLES[@]}"; do
@@ -43,6 +43,12 @@ done
 echo "==> eval mcp and agent_platform examples"
 "${CLI[@]}" eval examples/mcp
 "${CLI[@]}" eval examples/agent_platform
+
+echo "==> deploy gemini_api example (dry-run)"
+"${CLI[@]}" deploy examples/gemini_api \
+	--project demo \
+	--location us-central1 \
+	--dry-run
 
 api_key="${GEMINI_API_KEY:-${GOOGLE_API_KEY-}}"
 if [[ -n ${api_key} ]]; then

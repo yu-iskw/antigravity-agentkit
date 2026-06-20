@@ -182,6 +182,50 @@ When `vertex.enabled` is true:
 
 Keep Vertex project/location aligned with your Agent Runtime `--project` and `--location` unless you intentionally split them.
 
+## Deploy targets
+
+`deployment.yaml` `spec.target` selects which Tier B artifact `deploy` emits. Live apply is not implemented for any target yet (ADR 0003).
+
+| Target                     | Artifact                                         | Notes                                                     |
+| -------------------------- | ------------------------------------------------ | --------------------------------------------------------- |
+| `agent-platform` (default) | `.build/deployment-config.json` + source package | Agent Runtime contract; includes scaling, gateway, Vertex |
+| `gemini-api`               | `.build/gemini-agent-config.json`                | Managed Agents registration contract; no source package   |
+| `ai-studio`, `cloud-run`   | —                                                | Not implemented; `deploy` raises `DeployError`            |
+
+### Gemini API (`target: gemini-api`)
+
+For API-key–friendly Managed Agents registration, set `spec.target: gemini-api` in
+`deployment.yaml`. AgentKit emits a submit-ready `agents.create` request body in
+`gemini-agent-config.json`. The deployment name becomes `id`, the base agent is pinned to
+`antigravity-preview-05-2026`, system instructions are embedded, and local skills are mounted
+as inline `.agents/skills/<name>/SKILL.md` sources.
+
+Gemini API emission rejects MCP servers, static subagents, policies, non-default capabilities,
+and enabled Vertex configuration because those settings cannot be represented by
+`agents.create`. The shared deployment fields `displayName`, `labels`, scaling, service account,
+resource limits, concurrency, and gateway apply only to Agent Platform and are ignored for
+`gemini-api`. The local runtime model is also independent of the pinned Managed Agents base
+harness.
+
+```bash
+uv run antigravity-agentkit deploy examples/gemini_api \
+  --project demo \
+  --location us-central1 \
+  --dry-run
+```
+
+`--project` and `--location` are ignored for `gemini-api` but remain required CLI flags. Apply the
+emitted JSON through the [Gemini API](https://ai.google.dev/gemini-api/docs/custom-agents) Agents
+API; live registration from AgentKit is not implemented yet.
+
+```bash
+curl -X POST "https://generativelanguage.googleapis.com/v1beta/agents" \
+  -H "Content-Type: application/json" \
+  -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+  -H "Api-Revision: 2026-05-20" \
+  --data-binary @examples/gemini_api/.build/gemini-agent-config.json
+```
+
 ## Deploying with `antigravity-agentkit deploy`
 
 ```bash

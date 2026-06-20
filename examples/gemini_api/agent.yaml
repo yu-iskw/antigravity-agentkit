@@ -1,0 +1,17 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Agent
+metadata:
+  name: gemini-api-demo
+  displayName: Gemini API Demo
+  description: Minimal ship example for Gemini API Managed Agents contract emission.
+spec:
+  runtime:
+    framework: antigravity
+    model: gemini-3.1-flash-lite
+    vertex:
+      enabled: false
+  instructions:
+    system: SYSTEM.md
+  skills:
+    local:
+      - skills/greeting-helper

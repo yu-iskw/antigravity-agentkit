@@ -318,7 +318,7 @@ def deploy_cmd(
     output: Path | None = typer.Option(None, "--output", "-o", help="Dry-run config output path."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Force dry-run mode."),
 ) -> None:
-    """[Ship] Deploy to Agent Platform or emit deployment config (requires deployment.yaml)."""
+    """[Ship] Deploy or emit deployment artifacts (requires deployment.yaml)."""
     try:
         agent_project, deployment = _load_ship_context(path)
         summary = deploy(

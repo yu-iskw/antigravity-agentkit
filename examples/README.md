@@ -11,6 +11,7 @@ Runnable example agents for learning and verification. Each example sets `spec.r
 | [`subagents/`](subagents/)           | Markdown subagent delegation tools                                                                  |
 | [`mcp/`](mcp/)                       | MCP server, policies, skills, subagents, and evals (slim `agent.yaml`; skills/subagents discovered) |
 | [`agent_platform/`](agent_platform/) | Enterprise reference with `deployment.yaml` and ship dry-run CI                                     |
+| [`gemini_api/`](gemini_api/)         | Gemini API Managed Agents contract emission (`target: gemini-api`)                                  |
 
 ## Prerequisites
 
