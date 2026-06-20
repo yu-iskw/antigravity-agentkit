@@ -34,13 +34,13 @@ async def main_async() -> None:
         loaded_skills=project.data.skills,
     )
     async with agent:
-        response = await agent.run(PROMPT)
+        response = await agent.chat(PROMPT)
         reply = await chat_response_text(response)
     print("create_agent_from_ir:", reply[:200])
 
     project_agent = create_agent_from_project(project, production=True, interactive=False)
     async with project_agent:
-        response = await project_agent.run(PROMPT)
+        response = await project_agent.chat(PROMPT)
         reply2 = await chat_response_text(response)
     print("create_agent_from_project:", reply2[:200])
 

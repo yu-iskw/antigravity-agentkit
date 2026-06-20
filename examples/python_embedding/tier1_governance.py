@@ -27,6 +27,9 @@ def main() -> None:
 
     report = project.eval()
     print(f"eval: {report.passed}/{report.total} passed")
+    if report.total == 0:
+        print("expected at least one eval case for support-triage", file=sys.stderr)
+        raise SystemExit(1)
     if not report.success:
         raise SystemExit(1)
 

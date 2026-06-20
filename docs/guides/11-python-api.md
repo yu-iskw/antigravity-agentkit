@@ -169,7 +169,7 @@ agent = create_agent_from_ir(
 
 async def classify_once():
     async with agent:
-        response = await agent.run("Classify this support message...")
+        response = await agent.chat("Classify this support message...")
         return await chat_response_text(response)
 ```
 

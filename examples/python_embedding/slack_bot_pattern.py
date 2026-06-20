@@ -48,7 +48,7 @@ Decide whether this needs:
 async def handle_app_mention(event: dict[str, Any], *, agent: Any) -> str:
     """Classify a Slack app_mention event and return assistant text."""
     async with agent:
-        response = await agent.run(_mention_prompt(event))
+        response = await agent.chat(_mention_prompt(event))
         return await chat_response_text(response)
 
 

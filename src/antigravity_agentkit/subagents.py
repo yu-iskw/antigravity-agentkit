@@ -195,7 +195,7 @@ def subagent_index_section(
     enable_subagents: bool = True,
 ) -> str:
     """Render subagent definitions for system-instruction injection."""
-    if not subagent_ir or not enable_subagents or sdk_subagents_supported():
+    if not subagent_ir or not enable_subagents:
         return ""
 
     lines = ["## Available Subagents", ""]

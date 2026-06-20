@@ -2,7 +2,7 @@
 
 from antigravity_agentkit.compiler import compile_agent_ir, compile_from_data
 from antigravity_agentkit.deploy import build_deployment_config, build_source_package, deploy
-from antigravity_agentkit.evals import EvalRunResult as EvalReport, run_evals
+from antigravity_agentkit.evals import EvalRunResult, run_evals
 from antigravity_agentkit.ir import CompiledAgentIR
 from antigravity_agentkit.ir_serde import ir_to_dict
 from antigravity_agentkit.loader import load_agent_directory, load_deployment
@@ -13,11 +13,14 @@ from antigravity_agentkit.schema.agent import AgentProjectData
 from antigravity_agentkit.sdk.policies import compile_sdk_policies
 from antigravity_agentkit.validator import validate_project
 
+EvalReport = EvalRunResult
+
 __all__ = [
     "AgentProject",
     "AgentProjectData",
     "CompiledAgentIR",
     "EvalReport",
+    "EvalRunResult",
     "RuntimeAgent",
     "build_agent_registry_metadata",
     "build_deployment_config",

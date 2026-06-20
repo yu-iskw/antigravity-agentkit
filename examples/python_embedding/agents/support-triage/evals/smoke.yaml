@@ -1,0 +1,10 @@
+version: 1
+cases:
+  - name: triage-ack
+    input: Classify this support billing issue
+    expected:
+      mustMention:
+        - support
+        - Processing
+      mustNotMention:
+        - password
