@@ -157,6 +157,18 @@ def compile_to_sdk_config_from_compiled(
         kwargs["model"] = compiled.model
     if compiled.mcp_servers:
         kwargs["mcp_servers"] = try_compile_mcp_sdk_objects_from_compiled(compiled.mcp_servers)
+    if compiled.skills_paths:
+        signature = inspect.signature(local_agent_config)
+        parameters = signature.parameters.values()
+        accepts_skills_paths = "skills_paths" in signature.parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters
+        )
+        if not accepts_skills_paths:
+            raise CompilationError(
+                "The installed google-antigravity SDK cannot accept skills_paths; "
+                "install a compatible SDK version."
+            )
+        kwargs["skills_paths"] = list(compiled.skills_paths)
     if compiled.runtime_tools:
         kwargs["tools"] = list(compiled.runtime_tools)
 

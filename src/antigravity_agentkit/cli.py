@@ -26,7 +26,7 @@ from antigravity_agentkit.registry import (
     build_mcp_server_metadata,
     publish_skill,
 )
-from antigravity_agentkit.runtime import RuntimeAgent
+from antigravity_agentkit.runtime import ReplIO, RuntimeAgent
 from antigravity_agentkit.schema.agent import AgentManifest
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.validator import validate_deployment, validate_project
@@ -35,7 +35,7 @@ app = typer.Typer(
     name="antigravity-agentkit",
     help=(
         "Antigravity AgentKit — declarative agent compiler and governance layer.\n\n"
-        "Implement: init, validate, compile, run, eval\n"
+        "Implement: init, validate, compile, run, chat, eval\n"
         "Ship: package, deploy, register (require deployment.yaml)"
     ),
     no_args_is_help=True,
@@ -197,7 +197,7 @@ def run_cmd(
     interactive: bool = typer.Option(
         False,
         "--interactive/--no-interactive",
-        help="Prompt for ask_user policy approvals (default: deny).",
+        help="Prompt for ask_user / requireApproval tool approvals (default: deny).",
     ),
     impersonate_service_account: str | None = typer.Option(
         None,
@@ -222,6 +222,53 @@ def run_cmd(
 
     try:
         asyncio.run(_run())
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("chat")
+def chat_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    prompt: str | None = typer.Option(
+        None,
+        "--prompt",
+        "-p",
+        help="Optional first message before the interactive loop.",
+    ),
+    production: bool = typer.Option(False, "--production"),
+    interactive: bool = typer.Option(
+        False,
+        "--interactive/--no-interactive",
+        help="Prompt for ask_user / requireApproval tool approvals (default: deny).",
+    ),
+    impersonate_service_account: str | None = typer.Option(
+        None,
+        "--impersonate-service-account",
+        envvar=IMPERSONATE_ENV,
+        help="Impersonate this SA for Vertex/API calls (operator auth only).",
+    ),
+) -> None:
+    """Run a multi-turn local chat session (REPL)."""
+    import asyncio
+
+    async def _chat() -> None:
+        runtime = RuntimeAgent.from_directory(_resolve_path(path), production=production)
+        agent_name = runtime.project.manifest.metadata.name
+        console.print(
+            f"Chat with {agent_name}. Type exit or quit to leave.",
+            markup=False,
+        )
+        await runtime.run_repl(
+            production=production,
+            interactive=interactive,
+            impersonate_service_account=impersonate_service_account,
+            initial_prompt=prompt,
+            io=ReplIO(print_fn=_print_plain),
+        )
+
+    try:
+        asyncio.run(_chat())
     except AgentKitError as exc:
         _print_error(exc)
         raise typer.Exit(code=1) from exc

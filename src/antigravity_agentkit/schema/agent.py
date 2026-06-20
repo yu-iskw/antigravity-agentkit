@@ -292,6 +292,7 @@ class CompiledAgentConfig:
     vertex: dict[str, Any] = field(default_factory=dict)
     model: str | None = None
     skill_index: Any = None
+    skills_paths: list[str] = field(default_factory=list)
 
 
 # Re-export related document types commonly loaded alongside manifests.

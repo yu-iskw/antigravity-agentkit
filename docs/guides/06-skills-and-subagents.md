@@ -60,6 +60,8 @@ A minimal skill package contains only `SKILL.md`. You can add supporting files (
 ```text
 skills/my-skill/
   SKILL.md
+  scripts/
+    validate.sh
   references/
     examples.md
 ```
@@ -117,6 +119,24 @@ This text is appended to `SYSTEM.md` content during compilation. The agent sees 
 At runtime, calling `read_skill` with `{"name": "bigquery-analysis"}` returns the full `SKILL.md` content (frontmatter and body). If the name is unknown, AgentKit returns an error listing available skills.
 
 **Authoring tip:** Write the `description` in frontmatter so the index alone is enough for the model to decide _whether_ to load the skill. Put detailed procedures in the markdown body.
+
+## Script execution
+
+Skill packages can bundle executable scripts under `scripts/` per the [Agent Skills specification](https://agentskills.io/specification). Reference scripts with **relative paths from the skill package root** in `SKILL.md` (for example `bash scripts/validate.sh`).
+
+There is no dedicated skill-script API. The agent runs bundled scripts through the Antigravity SDK **`run_command`** builtin. At compile time, AgentKit passes absolute skill package directories to the SDK via **`skills_paths`** so the local harness can index skills natively alongside the compiled `read_skill` helper.
+
+The SDK **denies `run_command` by default** unless policies override it. To enable script execution, allow the tool in `policies.yaml`:
+
+```yaml
+default: deny
+
+allow:
+  - tool: read_skill
+  - tool: run_command
+```
+
+The [`skills` example](../../examples/skills/) demonstrates a minimal `scripts/greet.sh` with this policy shape. Managed sandbox isolation on Google Cloud Agent Platform is platform-owned; see [ADR 0003](../adr/0003-agent-platform-boundary.md).
 
 ## Subagents overview
 

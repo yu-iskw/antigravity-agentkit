@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -153,12 +154,42 @@ def test_cli_eval_mcp_agent(mcp_agent_dir: Path) -> None:
     assert "1/1 passed" in result.stdout
 
 
-def test_cli_run_help_includes_interactive_flag() -> None:
-    """run command documents the interactive approval flag."""
-    result = runner.invoke(app, ["run", "--help"])
+@pytest.mark.parametrize("command", ["run", "chat"])
+def test_cli_local_session_help_includes_interactive_flag(command: str) -> None:
+    """run and chat document the interactive approval flag."""
+    result = runner.invoke(app, [command, "--help"])
 
     assert result.exit_code == 0, result.stdout
     assert "-interactive" in result.stdout
+    if command == "chat":
+        assert "--prompt" in result.stdout
+
+
+def test_cli_chat_invokes_run_repl(
+    hello_world_agent_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """chat command wires through to RuntimeAgent.run_repl."""
+    calls: list[dict[str, object]] = []
+
+    async def fake_run_repl(runtime_agent: object, **kwargs: object) -> None:
+        del runtime_agent
+        calls.append(kwargs)
+
+    monkeypatch.setattr(
+        "antigravity_agentkit.runtime.RuntimeAgent.run_repl",
+        fake_run_repl,
+    )
+
+    result = runner.invoke(
+        app,
+        ["chat", str(hello_world_agent_dir), "--prompt", "hi"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert len(calls) == 1
+    assert calls[0]["initial_prompt"] == "hi"
+    assert "Chat with hello-world" in result.stdout
 
 
 def test_print_plain_does_not_interpret_markup() -> None:

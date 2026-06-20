@@ -69,6 +69,7 @@ uv run antigravity-agentkit init <name>
 uv run antigravity-agentkit validate <path> [--level full] [--profile prod-readonly]
 uv run antigravity-agentkit compile <path> [--production]
 uv run antigravity-agentkit run <path> --prompt "..."
+uv run antigravity-agentkit chat <path> [--prompt "..."]
 uv run antigravity-agentkit eval <path> [--suite smoke]
 uv run antigravity-agentkit package <path> [--output-dir DIR]
 uv run antigravity-agentkit deploy <path> --project ID --location REGION [--dry-run]

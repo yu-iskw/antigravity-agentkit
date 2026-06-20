@@ -18,7 +18,7 @@ For local chat against a live model (requires the Antigravity SDK):
 pip install 'antigravity-agentkit[antigravity]'
 ```
 
-Validation, compilation, and evals work without the optional SDK. The `run` command needs `[antigravity]`.
+Validation, compilation, and evals work without the optional SDK. The `run` and `chat` commands need `[antigravity]`.
 
 ## Quick start
 
@@ -42,6 +42,12 @@ Run a single chat turn (requires `[antigravity]` and `GEMINI_API_KEY` or `GOOGLE
 
 ```bash
 antigravity-agentkit run examples/hello_world --prompt "Hello"
+```
+
+For a multi-turn local conversation, use `chat` (same requirements):
+
+```bash
+antigravity-agentkit chat examples/hello_world
 ```
 
 ## Agent directory layout
@@ -71,7 +77,7 @@ JSON Schema definitions: [`docs/schemas/`](docs/schemas/)
 
 ## CLI commands
 
-**Implement:** `init`, `validate`, `compile`, `run`, `eval` — work without `deployment.yaml`.
+**Implement:** `init`, `validate`, `compile`, `run`, `chat`, `eval` — work without `deployment.yaml`.
 
 **Ship:** `package`, `deploy`, `register` — require `deployment.yaml` in the agent directory.
 
@@ -81,6 +87,7 @@ JSON Schema definitions: [`docs/schemas/`](docs/schemas/)
 | `antigravity-agentkit validate <path>`                                    | Implement | Validate manifest, security rules, and policies |
 | `antigravity-agentkit compile <path>`                                     | Implement | Compile to runtime configuration (JSON)         |
 | `antigravity-agentkit run <path> --prompt <text>`                         | Implement | Run one local chat turn                         |
+| `antigravity-agentkit chat <path>`                                        | Implement | Multi-turn local chat (REPL)                    |
 | `antigravity-agentkit eval <path>`                                        | Implement | Run evaluation suites (deterministic mock mode) |
 | `antigravity-agentkit package <path>`                                     | Ship      | Build a deployable source package               |
 | `antigravity-agentkit deploy <path> --project <id> --location <region>`   | Ship      | Deploy or emit deployment config                |
@@ -91,7 +98,8 @@ Useful flags:
 
 - `validate --level {syntax,schema,security,cloud,full}` — validation depth (default: `schema`)
 - `validate --profile {dev-open,dev-restricted,prod-readonly,prod-human-approval,prod-locked}` — governance profile
-- `compile --production` / `run --production` — apply production policy gates
+- `compile --production` / `run --production` / `chat --production` — apply production policy gates
+- `run --interactive` / `chat --interactive` — prompt for ask_user / requireApproval tool approvals
 - `deploy --dry-run` — emit deployment config without applying changes
 
 ## Examples

@@ -81,6 +81,8 @@ def test_compile_injects_skill_index_into_instructions(skills_agent_dir: Path) -
 
     assert "## Available Skills" in compiled.system_instructions
     assert "greeting-helper" in compiled.system_instructions
+    assert len(compiled.skills_paths) == 1
+    assert compiled.skills_paths[0].endswith("skills/greeting-helper")
 
 
 def test_compile_vertex_settings_from_manifest(mcp_agent_dir: Path) -> None:

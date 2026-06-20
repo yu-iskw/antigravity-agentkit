@@ -145,6 +145,22 @@ The CLI prints the model response to stdout. For production gates:
 antigravity-agentkit run my-agent --prompt "Hello" --production
 ```
 
+## Step 5b: Chat interactively
+
+For a multi-turn conversation in one session, use `chat` instead of `run`:
+
+```bash
+antigravity-agentkit chat my-agent
+```
+
+Optional first message, then continue at the `You:` prompt:
+
+```bash
+antigravity-agentkit chat my-agent --prompt "Hello"
+```
+
+Type `exit` or `quit` (or press Ctrl-D) to leave. Use `--interactive` when `policies.yaml` requires human approval for tool calls.
+
 ## Walkthrough: hello_world example
 
 You can skip scaffolding and use the repository example directly:

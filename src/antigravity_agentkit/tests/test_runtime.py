@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import create_autospec
 
-from antigravity_agentkit.runtime import chat_response_text
+from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.runtime import ReplIO, RuntimeAgent, chat_response_text
+
+
+def _runtime_with_agent(agent: object) -> RuntimeAgent:
+    """Build a RuntimeAgent stub that always returns the given session agent."""
+    project = create_autospec(AgentProject, instance=True)
+    project.create_agent.return_value = agent
+    return RuntimeAgent(project)
 
 
 class _AsyncTextResponse:
@@ -48,6 +57,10 @@ class _SessionBoundResponse:
     def close_session(self) -> None:
         self._session_open = False
 
+    @property
+    def session_open(self) -> bool:
+        return self._session_open
+
     async def text(self) -> str:
         if not self._session_open:
             await asyncio.sleep(3600)
@@ -73,18 +86,8 @@ class _SessionAgent:
 
 def test_run_chat_drains_response_before_session_exit() -> None:
     """run_chat must resolve text before leaving async with agent."""
-    # pylint: disable=protected-access
-    from antigravity_agentkit.runtime import RuntimeAgent
-
     response = _SessionBoundResponse()
-    runtime = RuntimeAgent.__new__(RuntimeAgent)
-    runtime._project = type(  # type: ignore[attr-defined]
-        "_P",
-        (),
-        {
-            "create_agent": staticmethod(lambda **_: _SessionAgent(response)),
-        },
-    )()
+    runtime = _runtime_with_agent(_SessionAgent(response))
 
     result = asyncio.run(
         asyncio.wait_for(
@@ -94,4 +97,60 @@ def test_run_chat_drains_response_before_session_exit() -> None:
     )
 
     assert result == "hello from agentkit"
-    assert not response._session_open
+    assert not response.session_open
+
+
+class _ReplSessionAgent:
+    """Records chat prompts across multiple turns in one session."""
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    async def chat(self, prompt: str) -> _AsyncTextResponse:
+        self.prompts.append(prompt)
+        return _AsyncTextResponse()
+
+    async def __aenter__(self) -> _ReplSessionAgent:
+        return self
+
+    async def __aexit__(self, *_args: object) -> None:
+        return None
+
+
+def test_run_repl_multiple_turns_same_session() -> None:
+    """run_repl reuses one agent session and processes multiple prompts."""
+    session = _ReplSessionAgent()
+    runtime = _runtime_with_agent(session)
+    printed: list[str] = []
+    inputs = iter(["follow up", "exit"])
+
+    asyncio.run(
+        runtime.run_repl(
+            initial_prompt="hi",
+            io=ReplIO(
+                input_fn=lambda _prompt: next(inputs),
+                print_fn=printed.append,
+            ),
+        )
+    )
+
+    assert session.prompts == ["hi", "follow up"]
+    assert printed == ["hello from agentkit", "hello from agentkit"]
+
+
+def test_run_repl_skips_empty_lines() -> None:
+    """run_repl ignores blank stdin lines."""
+    session = _ReplSessionAgent()
+    runtime = _runtime_with_agent(session)
+    inputs = iter(["", "  ", "hello", "quit"])
+
+    asyncio.run(
+        runtime.run_repl(
+            io=ReplIO(
+                input_fn=lambda _prompt: next(inputs),
+                print_fn=lambda _text: None,
+            ),
+        )
+    )
+
+    assert session.prompts == ["hello"]

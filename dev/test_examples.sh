@@ -49,7 +49,7 @@ if [[ -n ${api_key} ]]; then
 	echo "==> live run examples (API key detected)"
 	LIVE_PROMPTS=(
 		"hello_world|Reply with exactly: hello from agentkit"
-		"skills|Say hello in one short sentence."
+		"skills|Use greeting-helper: run bash scripts/greet.sh Ada and reply with only the script stdout."
 		"subagents|Say hello in one short sentence."
 		"mcp|Say hello in one short sentence."
 		"agent_platform|Say hello in one short sentence."

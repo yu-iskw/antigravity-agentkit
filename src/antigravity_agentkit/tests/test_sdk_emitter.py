@@ -153,3 +153,18 @@ def test_compile_to_sdk_config_interactive_uses_distinct_handler(
         if "google-antigravity is not installed" in str(exc):
             pytest.skip("google-antigravity not installed")
         raise
+
+
+def test_compile_to_sdk_config_emits_skills_paths(skills_agent_dir: Path) -> None:
+    """SDK config receives compiled skills_paths when google-antigravity is installed."""
+    compiled = compile_agent_config(skills_agent_dir)
+
+    try:
+        sdk_config = compile_to_sdk_config(compiled)
+    except Exception as exc:
+        if "google-antigravity is not installed" in str(exc):
+            pytest.skip("google-antigravity not installed")
+        raise
+
+    assert sdk_config.skills_paths == compiled.skills_paths
+    assert len(sdk_config.skills_paths) == 1

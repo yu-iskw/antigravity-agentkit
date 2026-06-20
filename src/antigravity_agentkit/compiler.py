@@ -12,7 +12,7 @@ from antigravity_agentkit.runtime_tools import build_read_skill_tool, read_skill
 from antigravity_agentkit.schema.agent import AgentProjectData, CompiledAgentConfig
 from antigravity_agentkit.schema.skills import LoadedSkill, SkillIndex
 from antigravity_agentkit.sdk import compile_to_sdk_config_from_compiled
-from antigravity_agentkit.skills import build_skill_index
+from antigravity_agentkit.skills import build_skill_index, compile_skills_paths
 from antigravity_agentkit.subagents import (
     compile_subagent_ir,
     delegation_tool_dict_from_ir,
@@ -55,21 +55,27 @@ def compile_tool_metadata(
     subagent_ir: list[dict[str, Any]],
     *,
     enable_subagents: bool,
+    coerced_skills: dict[str, LoadedSkill] | None = None,
 ) -> list[dict[str, Any]]:
     """Compile serializable tool metadata for manifests and registry."""
+    skills = coerced_skills if coerced_skills is not None else _coerce_skills(data.skills)
     tools: list[dict[str, Any]] = []
     if enable_subagents:
         tools.extend(delegation_tool_dict_from_ir(entry) for entry in subagent_ir)
-    tools.append(read_skill_tool_metadata(_coerce_skills(data.skills)))
+    tools.append(read_skill_tool_metadata(skills))
     return tools
 
 
-def compile_runtime_tools(data: AgentProjectData) -> list[Any]:
+def compile_runtime_tools(
+    data: AgentProjectData,
+    *,
+    coerced_skills: dict[str, LoadedSkill] | None = None,
+) -> list[Any]:
     """Compile callable tools for Antigravity SDK runtime."""
+    skills = coerced_skills if coerced_skills is not None else _coerce_skills(data.skills)
     runtime_tools: list[Any] = []
-    coerced = _coerce_skills(data.skills)
-    if coerced:
-        runtime_tools.append(build_read_skill_tool(coerced))
+    if skills:
+        runtime_tools.append(build_read_skill_tool(skills))
     return runtime_tools
 
 
@@ -85,7 +91,9 @@ def compile_vertex_settings(data: AgentProjectData) -> dict[str, Any]:
 
 def compile_from_data(data: AgentProjectData) -> CompiledAgentConfig:
     """Compile loaded agent project data into runtime configuration."""
-    skill_index = build_skill_index(_coerce_skills(data.skills))
+    coerced_skills = _coerce_skills(data.skills)
+    skill_index = build_skill_index(coerced_skills)
+    skills_paths = compile_skills_paths(coerced_skills)
     subagents = compile_subagent_ir(data.subagents)
     capabilities = compile_capabilities_ir(
         data.manifest.spec.runtime.capabilities,
@@ -114,14 +122,16 @@ def compile_from_data(data: AgentProjectData) -> CompiledAgentConfig:
             data,
             subagents,
             enable_subagents=enable_subagents,
+            coerced_skills=coerced_skills,
         ),
-        runtime_tools=compile_runtime_tools(data),
+        runtime_tools=compile_runtime_tools(data, coerced_skills=coerced_skills),
         policies=policies,
         capabilities=capabilities,
         subagents=subagents,
         vertex=compile_vertex_settings(data),
         model=data.manifest.spec.runtime.model,
         skill_index=skill_index,
+        skills_paths=skills_paths,
     )
 
 

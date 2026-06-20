@@ -122,6 +122,11 @@ def build_skill_index(skills: dict[str, LoadedSkill]) -> SkillIndex:
     return SkillIndex(entries=entries)
 
 
+def compile_skills_paths(skills: dict[str, LoadedSkill]) -> list[str]:
+    """Return absolute skill package directories for SDK skills_paths."""
+    return sorted({str(skill.path.parent) for skill in skills.values()})
+
+
 def read_skill(skills: dict[str, LoadedSkill], name: str) -> str:
     """Return full SKILL.md content for the named skill."""
     skill = skills.get(name)

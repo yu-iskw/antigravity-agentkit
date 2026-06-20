@@ -152,15 +152,20 @@ from antigravity_agentkit import RuntimeAgent
 async def main():
     runtime = RuntimeAgent.from_directory("examples/hello_world")
     response = await runtime.run_chat("Hello!", production=False)
-    print(await response.text())
+    print(response)
 
     # Prompt for ask_user policy approvals:
     response = await runtime.run_chat("Delete prod data", interactive=True)
 
+    # Multi-turn REPL (stdin loop):
+    await runtime.run_repl(initial_prompt="Hello!")
+
 asyncio.run(main())
 ```
 
-`from_directory(..., production=True)` calls `project.validate(production=True)` before constructing the wrapper. `run_chat()` calls `create_agent()` and `agent.chat(prompt)` inside an async context manager. Pass `interactive=True` when `policies.yaml` contains `askUser` or `requireApproval` rules.
+`from_directory(..., production=True)` calls `project.validate(production=True)` before constructing the wrapper. `run_chat()` runs a single turn; `run_repl()` keeps one SDK agent session open and reads prompts from stdin until `exit`, `quit`, or EOF. Pass `interactive=True` when `policies.yaml` contains `askUser` or `requireApproval` rules.
+
+CLI equivalents: `antigravity-agentkit run` (one turn), `antigravity-agentkit chat` (REPL).
 
 ### Policy compilation helper
 
@@ -173,7 +178,7 @@ policies = compile_sdk_policies(compiled.policies)
 # list of google.antigravity.policy objects
 ```
 
-Non-interactive mode (the default) denies `ask_user` / `require_approval` tool calls via a default handler that returns `False`. Use `create_agent(interactive=True)`, `run_chat(..., interactive=True)`, or `antigravity-agentkit run --interactive` to approve interactively.
+Non-interactive mode (the default) denies `ask_user` / `require_approval` tool calls via a default handler that returns `False`. Use `create_agent(interactive=True)`, `run_chat(..., interactive=True)`, `run_repl(..., interactive=True)`, or `antigravity-agentkit run|chat --interactive` to approve interactively.
 
 ## Deploy and registry helpers
 
