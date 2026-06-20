@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from antigravity_agentkit.deploy import build_deployment_config, deploy
-from antigravity_agentkit.deploy.agent_platform import _has_gcp_credentials
+from antigravity_agentkit.deploy._common import has_gcp_credentials
 from antigravity_agentkit.exceptions import DeployError
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.deployment import DeploymentManifest
@@ -198,7 +198,7 @@ def test_has_gcp_credentials_with_application_credentials(
     monkeypatch.delenv("CLOUDSDK_AUTH_ACCESS_TOKEN", raising=False)
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(creds_file))
 
-    assert _has_gcp_credentials()
+    assert has_gcp_credentials()
 
 
 def test_deploy_implicit_dry_run_without_credentials(
@@ -209,7 +209,7 @@ def test_deploy_implicit_dry_run_without_credentials(
     """deploy() defaults to dry-run when credential env vars are unset and ADC is absent."""
     monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
     monkeypatch.delenv("CLOUDSDK_AUTH_ACCESS_TOKEN", raising=False)
-    if _has_gcp_credentials():
+    if has_gcp_credentials():
         pytest.skip("ADC present locally; implicit dry-run path requires absent credentials")
 
     project, deployment = ship_context
@@ -241,16 +241,3 @@ def test_deploy_live_raises_not_implemented(
             TEST_GCP_LOCATION,
             dry_run=False,
         )
-
-
-def test_unimplemented_target_raises(
-    ship_context: tuple[AgentProject, DeploymentManifest],
-) -> None:
-    """Non-agent-platform targets raise DeployError in M1."""
-    project, deployment = ship_context
-    gemini_deployment = deployment.model_copy(
-        update={"spec": deployment.spec.model_copy(update={"target": "gemini-api"})}
-    )
-
-    with pytest.raises(DeployError, match="not implemented"):
-        build_deployment_config(project, gemini_deployment, TEST_GCP_PROJECT, TEST_GCP_LOCATION)

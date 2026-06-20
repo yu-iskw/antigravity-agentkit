@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.schema.deployment import DeploymentManifest
 
 
 def write_minimal_agent(agent_dir: Path, system_path: str = "SYSTEM.md") -> AgentProject:
@@ -28,3 +31,22 @@ def write_minimal_agent(agent_dir: Path, system_path: str = "SYSTEM.md") -> Agen
         encoding="utf-8",
     )
     return AgentProject.load(agent_dir)
+
+
+@pytest.fixture
+def gemini_deploy_context(tmp_path: Path) -> tuple[AgentProject, DeploymentManifest]:
+    """Agent project configured for gemini-api deployment."""
+    project = write_minimal_agent(tmp_path / "agent")
+    deployment = DeploymentManifest.model_validate(
+        {
+            "apiVersion": "antigravity-agentkit.dev/v1alpha1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-agent"},
+            "spec": {
+                "target": "gemini-api",
+                "displayName": "Gemini Demo",
+                "labels": {"env": "test"},
+            },
+        }
+    )
+    return project, deployment
