@@ -37,6 +37,10 @@ def compile_sdk_mcp_servers(
     sdk_servers: list[Any] = []
     for server in servers:
         kwargs: dict[str, Any] = {"name": server.name}
+        if server.enabled_tools:
+            kwargs["enabled_tools"] = list(server.enabled_tools)
+        if server.disabled_tools:
+            kwargs["disabled_tools"] = list(server.disabled_tools)
         if server.transport == "streamable-http":
             http_server = getattr(types, "McpStreamableHttpServer", None)
             if http_server is None:
@@ -46,7 +50,23 @@ def compile_sdk_mcp_servers(
                     sdk_version=capabilities.sdk_version,
                 )
             kwargs["url"] = server.url
+            if server.headers:
+                kwargs["headers"] = dict(server.headers)
             sdk_servers.append(http_server(**kwargs))
+            continue
+
+        if server.transport == "sse":
+            sse_server = getattr(types, "McpSseServer", None)
+            if not capabilities.has_mcp_sse_server or sse_server is None:
+                raise SdkCompatibilityError(
+                    "The installed SDK does not provide McpSseServer.",
+                    feature="mcp",
+                    sdk_version=capabilities.sdk_version,
+                )
+            kwargs["url"] = server.url
+            if server.headers:
+                kwargs["headers"] = dict(server.headers)
+            sdk_servers.append(sse_server(**kwargs))
             continue
 
         stdio_server = getattr(types, "McpStdioServer", None)

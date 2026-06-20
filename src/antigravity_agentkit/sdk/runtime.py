@@ -131,12 +131,13 @@ def assemble(
         kwargs["capabilities"] = sdk_capabilities
 
     sdk_subagents = ()
-    if (
-        ir.capabilities.enable_subagents
-        and ir.subagents
-        and caps.has_subagent_config
-        and caps.accepts_subagents
-    ):
+    if ir.capabilities.enable_subagents and ir.subagents:
+        if not caps.has_subagent_config or not caps.accepts_subagents:
+            raise SdkCompatibilityError(
+                "The installed google-antigravity SDK cannot accept static subagents.",
+                feature="subagents",
+                sdk_version=caps.sdk_version,
+            )
         sdk_subagents = compile_sdk_subagents(ir.subagents, capabilities=caps)
         kwargs["subagents"] = list(sdk_subagents)
 

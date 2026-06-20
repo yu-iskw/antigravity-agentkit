@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -55,8 +56,10 @@ def build_registry_metadata(
     agent_name = str(ir.metadata.get("name", deployment.metadata.name))
     display_name = str(ir.metadata.get("displayName", agent_name))
     description = ir.metadata.get("description")
-    labels = ir.metadata.get("labels", {})
-    if not isinstance(labels, dict):
+    labels_value = ir.metadata.get("labels", {})
+    if isinstance(labels_value, Mapping):
+        labels = {str(key): str(value) for key, value in labels_value.items()}
+    else:
         labels = {}
 
     scope = (

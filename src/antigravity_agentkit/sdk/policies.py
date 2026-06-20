@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, cast
 
 from antigravity_agentkit.ir import PolicyRuleIR
@@ -36,7 +36,7 @@ def resolve_ask_user_handler(*, interactive: bool) -> AskUserHandler:
         return _stdin_ask_user_handler
 
 
-def _build_when_predicate(when: dict[str, JsonValue] | None) -> Callable[..., bool] | None:
+def _build_when_predicate(when: Mapping[str, JsonValue] | None) -> Callable[..., bool] | None:
     if not when:
         return None
 

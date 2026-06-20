@@ -28,13 +28,6 @@ _EXCLUDED_DIRECTORY_NAMES = frozenset(
     }
 )
 _EXCLUDED_FILE_NAMES = frozenset({".DS_Store"})
-_SOURCE_HASH_FILES = (
-    "agent.yaml",
-    "SYSTEM.md",
-    "mcp.json",
-    "policies.yaml",
-    "deployment.yaml",
-)
 
 
 def _is_excluded(relative_path: Path) -> bool:
@@ -72,15 +65,26 @@ def _package_entries(project_root: Path) -> list[tuple[Path, Path]]:
     return entries
 
 
-def _copy_project_tree(entries: list[tuple[Path, Path]], build_root: Path) -> None:
-    """Copy validated agent source entries into the package."""
+def _sha256_bytes(data: bytes) -> str:
+    return f"sha256:{hashlib.sha256(data).hexdigest()}"
+
+
+def _copy_project_tree(
+    entries: list[tuple[Path, Path]],
+    build_root: Path,
+) -> dict[str, str]:
+    """Copy validated agent source entries and hash each file in one read."""
+    source_hashes: dict[str, str] = {}
     for source, relative_path in entries:
         destination = build_root / relative_path
         if source.is_dir():
             destination.mkdir(parents=True, exist_ok=True)
         elif source.is_file():
+            data = source.read_bytes()
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
+            destination.write_bytes(data)
+            source_hashes[relative_path.as_posix()] = _sha256_bytes(data)
+    return source_hashes
 
 
 def _validate_build_root(project_root: Path, build_root: Path) -> None:
@@ -97,22 +101,6 @@ def _validate_build_root(project_root: Path, build_root: Path) -> None:
             )
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return f"sha256:{digest}"
-
-
-def _source_hashes(project_root: Path, ir: CompiledAgentIR) -> dict[str, str]:
-    hashes: dict[str, str] = {}
-    for rel_path in _SOURCE_HASH_FILES:
-        path = project_root / rel_path
-        if path.is_file():
-            hashes[rel_path] = _sha256_file(path)
-    for skill in ir.skills:
-        hashes[skill.path] = skill.content_hash
-    return hashes
-
-
 def _agentkit_version() -> str:
     try:
         return importlib.metadata.version("antigravity-agentkit")
@@ -124,6 +112,7 @@ def _write_package_files(
     project: AgentProject,
     build_root: Path,
     compiled: CompiledAgentIR,
+    source_hashes: dict[str, str],
 ) -> None:
     """Write generated runtime entrypoint, IR, lockfile, and package metadata."""
     manifest = project.data.manifest
@@ -152,7 +141,7 @@ def _write_package_files(
         "agentkitVersion": _agentkit_version(),
         "irSchemaVersion": IR_SCHEMA_VERSION,
         "generatedAt": datetime.now(UTC).isoformat(),
-        "sourceHashes": _source_hashes(project.root, compiled),
+        "sourceHashes": source_hashes,
         "sdkCompatibility": {
             "minimumGoogleAntigravity": "0.1.4",
         },
@@ -197,6 +186,6 @@ def build_source_package(
         shutil.rmtree(build_root)
     build_root.mkdir(parents=True)
 
-    _copy_project_tree(package_entries, build_root)
-    _write_package_files(project, build_root, ir)
+    source_hashes = _copy_project_tree(package_entries, build_root)
+    _write_package_files(project, build_root, ir, source_hashes)
     return build_root

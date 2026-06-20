@@ -204,6 +204,12 @@ def compile_mcp_servers_to_ir(mcp_config: McpConfig | dict[str, Any]) -> tuple[M
                 args=tuple(server_dict.get("args") or ()),
                 url=server_dict.get("url"),
                 env={str(key): str(value) for key, value in (server_dict.get("env") or {}).items()},
+                headers={
+                    str(key): str(value)
+                    for key, value in (server_dict.get("headers") or {}).items()
+                },
+                enabled_tools=tuple(server_dict.get("enabledTools") or ()),
+                disabled_tools=tuple(server_dict.get("disabledTools") or ()),
             )
         )
     return tuple(servers)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -152,6 +153,38 @@ def test_build_source_package_keeps_assets_and_discovered_components(tmp_path: P
     assert (package_dir / "assets" / "prompt.txt").read_text(encoding="utf-8") == "runtime asset"
     assert "helper" in packaged_project.data.skills
     assert "reviewer" in packaged_project.data.subagents
+
+
+def test_package_lock_hashes_every_copied_source_file(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    project = write_minimal_agent(agent_dir)
+    source_files = {
+        "assets/prompt.txt": "runtime asset",
+        "skills/helper/SKILL.md": "---\nname: helper\ndescription: Helps.\n---\n\n# Helper\n",
+        "skills/helper/scripts/run.sh": "#!/bin/sh\necho helper\n",
+        "subagents/reviewer.md": (
+            "---\nname: reviewer\ndescription: Reviews.\n---\n\n# Reviewer\n"
+        ),
+    }
+    for relative_path, content in source_files.items():
+        path = agent_dir / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    package_dir = build_source_package(project, output_dir=tmp_path / "package")
+    lock = json.loads((package_dir / "agentkit.lock.json").read_text(encoding="utf-8"))
+
+    for relative_path in source_files:
+        packaged_file = package_dir / relative_path
+        expected = f"sha256:{hashlib.sha256(packaged_file.read_bytes()).hexdigest()}"
+        assert lock["sourceHashes"][relative_path] == expected
+
+    script = agent_dir / "skills/helper/scripts/run.sh"
+    previous_hash = lock["sourceHashes"]["skills/helper/scripts/run.sh"]
+    script.write_text("#!/bin/sh\necho changed\n", encoding="utf-8")
+    package_dir = build_source_package(project, output_dir=tmp_path / "package")
+    updated_lock = json.loads((package_dir / "agentkit.lock.json").read_text(encoding="utf-8"))
+    assert updated_lock["sourceHashes"]["skills/helper/scripts/run.sh"] != previous_hash
 
 
 def test_build_source_package_excludes_dev_and_secret_files(tmp_path: Path) -> None:

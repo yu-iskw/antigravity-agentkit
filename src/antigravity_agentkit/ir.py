@@ -2,12 +2,36 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Literal
 
 from antigravity_agentkit.json_types import JsonValue
 
 IR_SCHEMA_VERSION = "antigravity-agentkit.ir/v1alpha1"
+
+
+def _freeze_json_value(value: JsonValue) -> JsonValue:
+    """Recursively convert JSON containers to immutable equivalents."""
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): _freeze_json_value(item) for key, item in value.items()})
+    if isinstance(value, Sequence):
+        return tuple(_freeze_json_value(item) for item in value)
+    raise TypeError(f"IR value is not JSON-compatible: {type(value)!r}")
+
+
+def _freeze_json_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
+    frozen = _freeze_json_value(value)
+    if not isinstance(frozen, Mapping):
+        raise TypeError("IR mapping value must be a mapping")
+    return frozen
+
+
+def _freeze_string_mapping(value: Mapping[str, str]) -> Mapping[str, str]:
+    return MappingProxyType(dict(value))
 
 
 @dataclass(frozen=True)
@@ -28,7 +52,17 @@ class McpServerIR:
     command: str | None = None
     args: tuple[str, ...] = ()
     url: str | None = None
-    env: dict[str, str] = field(default_factory=dict)
+    env: Mapping[str, str] = field(default_factory=dict)
+    headers: Mapping[str, str] = field(default_factory=dict)
+    enabled_tools: tuple[str, ...] = ()
+    disabled_tools: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "env", _freeze_string_mapping(self.env))
+        object.__setattr__(self, "headers", _freeze_string_mapping(self.headers))
+        object.__setattr__(self, "args", tuple(self.args))
+        object.__setattr__(self, "enabled_tools", tuple(self.enabled_tools))
+        object.__setattr__(self, "disabled_tools", tuple(self.disabled_tools))
 
 
 @dataclass(frozen=True)
@@ -58,6 +92,9 @@ class SubagentIR:
     auth_mode: Literal["agent-identity", "service-account", "oauth"] = "agent-identity"
     tools: tuple[str, ...] = ()
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "tools", tuple(self.tools))
+
 
 @dataclass(frozen=True)
 class ToolIR:
@@ -66,7 +103,10 @@ class ToolIR:
     name: str
     kind: Literal["skill-reader", "delegation", "mcp", "runtime"]
     description: str | None = None
-    metadata: dict[str, JsonValue] = field(default_factory=dict)
+    metadata: Mapping[str, JsonValue] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "metadata", _freeze_json_mapping(self.metadata))
 
 
 @dataclass(frozen=True)
@@ -76,7 +116,10 @@ class PolicyRuleIR:
     decision: Literal["allow", "deny", "ask_user", "require_approval"]
     tool: str | None = None
     default: bool = False
-    when: dict[str, JsonValue] = field(default_factory=dict)
+    when: Mapping[str, JsonValue] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "when", _freeze_json_mapping(self.when))
 
 
 @dataclass(frozen=True)
@@ -87,6 +130,10 @@ class CapabilitiesIR:
     enabled_tools: tuple[str, ...] = ()
     disabled_tools: tuple[str, ...] = ()
     enable_subagents: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "enabled_tools", tuple(self.enabled_tools))
+        object.__setattr__(self, "disabled_tools", tuple(self.disabled_tools))
 
 
 def default_capabilities_ir() -> CapabilitiesIR:
@@ -106,7 +153,7 @@ class CompiledAgentIR:
 
     schema_version: str
     system_instructions: str
-    metadata: dict[str, JsonValue] = field(default_factory=dict)
+    metadata: Mapping[str, JsonValue] = field(default_factory=dict)
     agentkit_version: str | None = None
     model: str | None = None
     vertex: VertexIR = field(default_factory=VertexIR)
@@ -117,3 +164,12 @@ class CompiledAgentIR:
     tools: tuple[ToolIR, ...] = ()
     policies: tuple[PolicyRuleIR, ...] = ()
     capabilities: CapabilitiesIR = field(default_factory=CapabilitiesIR)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "metadata", _freeze_json_mapping(self.metadata))
+        object.__setattr__(self, "mcp_servers", tuple(self.mcp_servers))
+        object.__setattr__(self, "skills", tuple(self.skills))
+        object.__setattr__(self, "skills_paths", tuple(self.skills_paths))
+        object.__setattr__(self, "subagents", tuple(self.subagents))
+        object.__setattr__(self, "tools", tuple(self.tools))
+        object.__setattr__(self, "policies", tuple(self.policies))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import fields, is_dataclass
 from typing import Any, cast
 
@@ -47,12 +48,12 @@ def _from_camel(name: str) -> str:
 def _serialize_value(value: Any) -> JsonValue:
     if is_dataclass(value) and not isinstance(value, type):
         return _serialize_dataclass(value)
-    if isinstance(value, dict):
-        return {str(key): _serialize_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_serialize_value(item) for item in value]
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
+    if isinstance(value, Mapping):
+        return {str(key): _serialize_value(item) for key, item in value.items()}
+    if isinstance(value, Sequence):
+        return [_serialize_value(item) for item in value]
     raise TypeError(f"IR value is not JSON-serializable: {type(value)!r}")
 
 
@@ -100,6 +101,9 @@ def _mcp_server_ir(data: dict[str, Any]) -> McpServerIR:
         args=tuple(mapped.get("args") or ()),
         url=mapped.get("url"),
         env={str(key): str(value) for key, value in (mapped.get("env") or {}).items()},
+        headers={str(key): str(value) for key, value in (mapped.get("headers") or {}).items()},
+        enabled_tools=tuple(mapped.get("enabled_tools") or ()),
+        disabled_tools=tuple(mapped.get("disabled_tools") or ()),
     )
 
 

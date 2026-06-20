@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from antigravity_agentkit.compiler import compile_agent_ir
 from antigravity_agentkit.sdk.capabilities import SdkCapabilities
+from antigravity_agentkit.sdk.errors import SdkCompatibilityError
 from antigravity_agentkit.sdk.runtime import create_sdk_config_from_ir
 
 
@@ -92,6 +96,31 @@ def test_create_sdk_config_includes_subagents_and_capabilities(
             create_sdk_config_from_ir(compiled, project_root=subagents_agent_dir)
         kwargs = mock_cls.call_args.kwargs
         assert kwargs.get("subagents")
+
+
+@pytest.mark.parametrize(
+    "capabilities",
+    [
+        replace(_full_capabilities(), has_subagent_config=False),
+        replace(_full_capabilities(), accepts_subagents=False),
+    ],
+)
+def test_create_sdk_config_rejects_unsupported_subagents(
+    subagents_agent_dir: Path,
+    capabilities: SdkCapabilities,
+) -> None:
+    compiled = compile_agent_ir(subagents_agent_dir)
+
+    with (
+        patch(
+            "antigravity_agentkit.sdk.runtime.SdkCapabilities.detect",
+            return_value=capabilities,
+        ),
+        pytest.raises(SdkCompatibilityError, match="cannot accept static subagents") as exc_info,
+    ):
+        create_sdk_config_from_ir(compiled, project_root=subagents_agent_dir)
+
+    assert exc_info.value.feature == "subagents"
 
 
 def test_create_sdk_config_emits_skills_paths(skills_agent_dir: Path) -> None:

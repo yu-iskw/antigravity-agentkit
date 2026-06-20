@@ -10,7 +10,9 @@ from unittest.mock import patch
 
 import pytest
 
+from antigravity_agentkit.compiler import compile_agent_ir
 from antigravity_agentkit.exceptions import RegistryError
+from antigravity_agentkit.loader import load_deployment
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.registry import (
     PROVENANCE_ENV_GIT_SHA,
@@ -20,8 +22,33 @@ from antigravity_agentkit.registry import (
     provenance_fields,
     publish_skill,
 )
+from antigravity_agentkit.registry.metadata import build_registry_metadata
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.tests.constants import TEST_GCP_LOCATION, TEST_GCP_PROJECT
+
+
+def test_build_registry_metadata_preserves_frozen_labels(
+    repo_root: Path,
+) -> None:
+    """Deep-frozen IR metadata labels survive registry metadata emission."""
+    agent_dir = repo_root / "examples" / "agent_platform"
+    deployment = load_deployment(agent_dir)
+    ir = compile_agent_ir(agent_dir)
+
+    metadata = build_registry_metadata(
+        ir,
+        deployment,
+        target_name="agent-platform-runtime",
+        location=TEST_GCP_LOCATION,
+    )
+
+    agent = metadata["agent"]
+    assert isinstance(agent, dict)
+    assert agent["labels"] == {
+        "domain": "examples",
+        "tier": "ship-demo",
+    }
+    json.dumps(metadata)
 
 
 def test_build_stdio_mcp_server_metadata(mcp_agent_dir: Path) -> None:

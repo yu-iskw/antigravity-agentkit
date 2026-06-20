@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,8 @@ def _sample_ir() -> CompiledAgentIR:
                 command="python",
                 args=("server.py",),
                 env={"FOO": "bar"},
+                headers={"Authorization": "Bearer token"},
+                disabled_tools=("dangerous_tool",),
             ),
         ),
         skills=(
@@ -88,6 +91,21 @@ def test_compiled_agent_ir_is_frozen() -> None:
         ir.model = "other"  # type: ignore[misc]
 
 
+def test_compiled_agent_ir_is_deeply_frozen() -> None:
+    ir = _sample_ir()
+
+    with pytest.raises(TypeError):
+        ir.metadata["name"] = "changed"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        ir.metadata["labels"]["managed-by"] = "changed"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        ir.mcp_servers[0].env["FOO"] = "changed"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        ir.mcp_servers[0].headers["Authorization"] = "changed"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        ir.tools[0].metadata["skills"] = ()  # type: ignore[index]
+
+
 def test_ir_json_round_trip() -> None:
     original = _sample_ir()
     restored = ir_from_dict(ir_to_dict(original))
@@ -121,7 +139,7 @@ def test_no_path_or_callable_fields() -> None:
         if dataclasses.is_dataclass(value) and not isinstance(value, type):
             for field in dataclasses.fields(value):
                 walk(getattr(value, field.name))
-        elif isinstance(value, dict):
+        elif isinstance(value, Mapping):
             for item in value.values():
                 walk(item)
         elif isinstance(value, (list, tuple)):
