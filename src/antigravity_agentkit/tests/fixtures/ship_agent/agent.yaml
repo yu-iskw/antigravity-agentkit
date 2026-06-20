@@ -1,0 +1,16 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Agent
+metadata:
+  name: ship-agent
+  displayName: Ship Agent
+  description: Minimal agent fixture for ship command tests.
+spec:
+  runtime:
+    framework: antigravity
+    model: gemini-3.1-flash-lite
+    vertex:
+      enabled: false
+  instructions:
+    system: SYSTEM.md
+  policies:
+    file: policies.yaml

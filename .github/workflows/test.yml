@@ -5,7 +5,7 @@ on:
     paths:
       - .github/workflows/test.yml
       - pyproject.toml
-      - src/your_package/**/*.py
+      - src/antigravity_agentkit/**/*.py
       - pylintrc
       - mise.toml
       - mise.lock
@@ -29,7 +29,7 @@ jobs:
       run:
         shell: bash
     env:
-      PYTHON_PACKAGE_NAME: YOUR_PYTHON_PACKAGE_NAME
+      PYTHON_PACKAGE_NAME: antigravity_agentkit
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python

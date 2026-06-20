@@ -1,0 +1,3 @@
+from typing import Any
+
+def compile_policies(*args: Any, **kwargs: Any) -> Any: ...

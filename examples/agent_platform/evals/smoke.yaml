@@ -1,0 +1,15 @@
+version: 1
+cases:
+  - name: current-time
+    input: What is the current UTC time?
+    expected:
+      mustMention:
+        - time
+        - UTC
+      mustNotMention:
+        - password
+    tools:
+      allowed:
+        - mcp.clock.get_utc_time
+      denied:
+        - run_command

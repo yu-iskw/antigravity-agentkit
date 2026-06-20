@@ -1,0 +1,62 @@
+name: Agent ship CI
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/agent_ship.yml
+      - dev/test_ship_agent.sh
+      - dev/test_agent_platform.sh
+      - examples/agent_platform/**
+      - src/antigravity_agentkit/tests/fixtures/ship_agent/**
+      - src/antigravity_agentkit/deploy/**
+      - src/antigravity_agentkit/registry.py
+      - src/antigravity_agentkit/tests/test_deploy.py
+      - src/antigravity_agentkit/tests/test_registry.py
+      - src/antigravity_agentkit/tests/conftest.py
+      - src/antigravity_agentkit/tests/constants.py
+      - docs/guides/09-packaging-and-deployment.md
+      - docs/guides/10-registry-and-publishing.md
+      - docs/guides/12-production-workflows.md
+      - docs/adr/0003-agent-platform-boundary.md
+  workflow_dispatch:
+
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: bash dev/setup.sh --deps development
+
+      - name: Run ship fixture workflow
+        env:
+          AGK_GIT_SHA: ${{ github.sha }}
+        run: bash dev/test_ship_agent.sh
+
+      - name: Run agent_platform example ship workflow
+        env:
+          AGK_GIT_SHA: ${{ github.sha }}
+        run: bash dev/test_agent_platform.sh
+
+      - name: Upload ship artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ship-agent-build
+          path: |
+            src/antigravity_agentkit/tests/fixtures/ship_agent/.build/
+            examples/agent_platform/.build/
+          if-no-files-found: error
+          include-hidden-files: true
+
+      # Platform apply is intentionally out of scope for AgentKit.
+      # Use Google Cloud Agents CLI or your GitOps/Terraform pipeline to
+      # deploy deployment-config.json to Agent Runtime and upload registry metadata.

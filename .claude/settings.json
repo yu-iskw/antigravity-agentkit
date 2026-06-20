@@ -62,8 +62,8 @@
       "Task"
     ],
     "deny": [
-      "Bash(rm -rf /)",
-      "Bash(rm -rf /*)",
+      "Bash(rm -rf *)",
+      "Bash(rm -rf ~*)",
       "Bash(sudo *)",
       "Bash(curl * | bash)",
       "Bash(wget * | bash)",

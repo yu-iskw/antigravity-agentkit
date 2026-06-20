@@ -1,0 +1,14 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Agent
+metadata:
+  name: hello-world
+  displayName: Hello World
+  description: Minimal AgentKit example using Gemini Flash.
+spec:
+  runtime:
+    framework: antigravity
+    model: gemini-3.1-flash-lite
+    vertex:
+      enabled: false
+  instructions:
+    system: SYSTEM.md

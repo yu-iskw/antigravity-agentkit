@@ -1,0 +1,39 @@
+apiVersion: antigravity-agentkit.dev/v1alpha1
+kind: Agent
+metadata:
+  name: platform-assistant
+  displayName: Platform Assistant
+  description: Enterprise reference agent with MCP, policies, evals, and Agent Platform ship manifests.
+  owner: platform-team
+  labels:
+    domain: examples
+    tier: ship-demo
+spec:
+  runtime:
+    framework: antigravity
+    model: gemini-3.1-flash-lite
+    vertex:
+      enabled: false
+    capabilities:
+      mode: restricted
+  instructions:
+    system: SYSTEM.md
+  mcp:
+    file: mcp.json
+    admissionPolicy:
+      allowedServers:
+        - clock
+  skills:
+    local:
+      - skills/mcp-guide
+  subagents:
+    - name: time-checker
+      type: markdown
+      file: subagents/time-checker.md
+      tools:
+        - mcp.clock.get_utc_time
+  policies:
+    file: policies.yaml
+  evals:
+    files:
+      - evals/smoke.yaml

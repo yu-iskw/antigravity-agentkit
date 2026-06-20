@@ -1,0 +1,12 @@
+default: deny
+
+allow:
+  - tool: read_skill
+  - tool: mcp.clock.get_utc_time
+
+requireApproval:
+  - tool: mcp.clock.echo
+
+deny:
+  - tool: run_command
+  - tool: write_file

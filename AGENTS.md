@@ -46,7 +46,7 @@ make clean        # Clean build artifacts
 
 ## Testing
 
-- Tests live under `src/your_package/tests/` (colocated with the package)
+- Tests live under `src/antigravity_agentkit/tests/` (colocated with the package)
 - Test files must match `test_*.py`
 - Run `make test` before commits
 - Aim for meaningful coverage on critical paths
@@ -82,7 +82,7 @@ make clean        # Clean build artifacts
 
 ## Architecture
 
-- Package source: `src/your_package/` (rename when initializing a real project)
+- Package source: `src/antigravity_agentkit/`
 - Dev scripts: `dev/`
 - CI/CD: `.github/workflows/`
 - **Claude Code** automation: [`.claude/`](.claude/) — see [CLAUDE.md](CLAUDE.md) for how Claude loads this repo and the directory layout
@@ -141,7 +141,7 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 | **Cursor**                                          | Loads root [AGENTS.md](AGENTS.md) and root [CLAUDE.md](CLAUDE.md) for Agent chat (and optional `.cursor/rules/`). [Cursor: Rules](https://cursor.com/docs/rules)                                                                                                                                                                                                                                                                                                                                    |
 | **OpenAI Codex**                                    | Merges `~/.codex/AGENTS.md` (or override) with repo [AGENTS.md](AGENTS.md) along the path; default size cap (often 32 KiB) applies to the combined project doc. Project overrides (e.g. `sandbox_mode`, `approval_policy`, `[sandbox_workspace_write]`) can live in [`.codex/config.toml`](.codex/config.toml) when the project is trusted. [Codex: AGENTS.md](https://developers.openai.com/codex/guides/agents-md/), [Codex: Sandboxing](https://developers.openai.com/codex/concepts/sandboxing) |
 | **Claude Code**                                     | Reads [CLAUDE.md](CLAUDE.md) (which inlines this file) plus [`.claude/`](.claude/). [Anthropic: CLAUDE.md](https://docs.anthropic.com/en/docs/claude-code/claude-md), [Claude directory](https://code.claude.com/docs/en/claude-directory)                                                                                                                                                                                                                                                          |
-| **Gemini CLI**                                      | Project [`.gemini/settings.json`](.gemini/settings.json) includes `AGENTS.md` in `context.fileName` with typical `GEMINI.md` handling. [Gemini: context](https://geminicli.com/docs/cli/gemini-md/)                                                                                                                                                                                                                                                                                                 |
+| **Gemini CLI**                                      | Project `.gemini/settings.json` includes `AGENTS.md` in `context.fileName` with typical `GEMINI.md` handling. [Gemini: context](https://geminicli.com/docs/cli/gemini-md/)                                                                                                                                                                                                                                                                                                                          |
 | **GitHub Copilot** (Chat, code review, cloud agent) | Treats root `AGENTS.md` (and `CLAUDE.md` / `GEMINI.md` if present) as **agent instructions**; may also use `.github/copilot-instructions.md` and path-scoped files with defined precedence. [Custom instructions](https://docs.github.com/en/copilot/concepts/prompting/response-customization)                                                                                                                                                                                                     |
 
 **Copilot / GitHub.com:** This repo does not add `.github/copilot-instructions.md`; build, test, and style narrative stay in this file. On GitHub.com, personal instructions override repository content, then path-scoped rules and `copilot-instructions.md` apply (see [Custom instructions](https://docs.github.com/en/copilot/concepts/prompting/response-customization)). **Edit policy:** shared rules here; Claude Code-only behavior, `@AGENTS.md` import, and `.claude/` details in [CLAUDE.md](CLAUDE.md).
@@ -154,3 +154,23 @@ Some tools load mirrored skills under `.agents/skills/` instead of `.claude/`. O
 - **`.gemini/settings.json`** — Gemini CLI project context
 - **`.cursor/rules/`** — Optional Cursor rules (e.g. Always Apply); see [Cursor: Rules](https://cursor.com/docs/rules)
 - **[`.codex/config.toml`](.codex/config.toml)** — Optional Codex defaults (sandbox, approvals); links above under **OpenAI Codex**
+
+## Learned User Preferences
+
+- Keep plans and implementations minimal; stay within the stated milestone (e.g. P0, M1) and avoid over-engineering beyond it.
+- Spawn parallel subagents for exploration, simplify/review passes, and verification instead of doing those sequentially in one agent.
+- When implementing from an attached plan, do not edit the plan file itself.
+- Prefer diagram-backed plans when making architecture or separation decisions.
+- Commit and push only when explicitly requested.
+
+## Learned Workspace Facts
+
+- This repo is **antigravity-agentkit** — a declarative compiler and governance layer over the Antigravity SDK; see RFC `docs/rfcs/0001-declarative-antigravity-agentkit.md`.
+- **Implement** lifecycle: `agent.yaml` plus assets → load, validate, compile, run, eval (`AgentProject`); no `deployment.yaml` required.
+- **Ship** lifecycle: optional `deployment.yaml` is required for `package`, `deploy`, and `register`; packaging lives in `antigravity_agentkit.deploy`, not `AgentProject`.
+- `spec.deployment` was removed from `agent.yaml` (hard break); infra and deploy target belong in `deployment.yaml` only.
+- Bundled implement-only examples (`hello_world`, `skills`, `subagents`, `mcp`) omit `deployment.yaml`; `examples/agent_platform/` is the ship-ready reference with `deployment.yaml` and package/deploy/register dry-run.
+- Local ship verification: `bash dev/test_agent_platform.sh` exercises the full `examples/agent_platform/` workflow and is used by `.github/workflows/agent_ship.yml`.
+- Example default model is `gemini-3.1-flash-lite`; live `run` in `dev/test_examples.sh` needs `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
+- Canonical deploy target is `agent-platform`; `gemini-api`, `ai-studio`, and `cloud-run` are schema stubs until adapters land.
+- P0 SDK emitter wires capabilities, MCP HTTP with per-server tool filters, subagent `SubagentConfig`, and `run --interactive` HITL through `compile_to_sdk_config`.
