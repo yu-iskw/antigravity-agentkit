@@ -19,16 +19,16 @@ Core-only CI installs the base package and runs load/validate/compile/eval witho
 
 ## Agent Platform boundary
 
-AgentKit is a **compiler and artifact factory**, not an Agent Platform operator. See [ADR 0003: Agent Platform boundary](../adr/0003-agent-platform-boundary.md) for the full decision record.
+AgentKit compiles agents and supports **native platform operations (M3)** via the `[gcp]` extra. See [ADR 0004: Native platform operations](../adr/0004-native-platform-operations.md) (amends [ADR 0003](../adr/0003-agent-platform-boundary.md)).
 
-| Tier                   | AgentKit                                           | Platform team (Agents CLI / console)  |
-| ---------------------- | -------------------------------------------------- | ------------------------------------- |
-| **A — Compile**        | skills, subagents, MCP, policies → SDK             | —                                     |
-| **B — Emit contracts** | `deployment-config.json`, registry JSON, skill zip | Apply artifacts to Runtime / Registry |
-| **C — Bindings**       | _Deferred_ — memory, sessions, sandbox YAML        | Managed services at runtime           |
-| **D — Ops**            | —                                                  | Gateway IAM, Model Armor, online eval |
+| Tier                   | AgentKit                                                                 | Platform team (infra only)     |
+| ---------------------- | ------------------------------------------------------------------------ | ------------------------------ |
+| **A — Compile**        | skills, subagents, MCP, policies → SDK                                   | —                              |
+| **B — Emit contracts** | `deployment-config.json`, registry JSON, skill zip                       | Optional GitOps mirror         |
+| **C — Bindings**       | _Deferred_ — memory, sessions, sandbox YAML                              | Managed services at runtime    |
+| **D — Ops (M3)**       | Live `deploy`, `register --live`, `publish`, `rollback`, platform `eval` | Terraform (BQ buckets, WIF CI) |
 
-Ship commands stop at Tier B. Live `deploy` without `--dry-run` raises `DeployError` until Agent Runtime apply is implemented deliberately in a later milestone.
+With GCP credentials configured, `deploy` applies to Agent Runtime via `vertexai.Client().agent_engines`. Use `--dry-run` to emit artifacts only (default when ADC is absent).
 
 ```mermaid
 flowchart TB
@@ -197,7 +197,7 @@ Keep Vertex project/location aligned with your Agent Runtime `--project` and `--
 
 ## Deploy targets
 
-`deployment.yaml` `spec.target` selects which Tier B artifact `deploy` emits. Live apply is not implemented for any target yet (ADR 0003). Canonical target names follow [RFC 0002](../rfcs/0002-spec-first-core-frozen-ir.md); legacy aliases remain accepted in CLI and manifests.
+`deployment.yaml` `spec.target` selects which artifact `deploy` emits. Live apply is implemented for `agent-platform-runtime` and `managed-agents-api` (M3). Canonical target names follow [RFC 0002](../rfcs/0002-spec-first-core-frozen-ir.md).
 
 | Target (canonical)                 | Alias            | Artifact                                         | Notes                                                           |
 | ---------------------------------- | ---------------- | ------------------------------------------------ | --------------------------------------------------------------- |
@@ -227,8 +227,7 @@ uv run antigravity-agentkit deploy examples/managed_agents_api \
   --dry-run
 ```
 
-`--project` and `--location` are ignored for `managed-agents-api` but remain required CLI flags. Apply the
-emitted JSON through the [Managed Agents API](https://ai.google.dev/gemini-api/docs/custom-agents) (`generativelanguage.googleapis.com/v1beta/agents`); live registration from AgentKit is not implemented yet.
+`--project` and `--location` are ignored for `managed-agents-api` config content but remain required CLI flags. Live apply uses `deploy` with explicit `--no-wait` or implicit credentials for Agent Platform Runtime; Managed Agents API live deploy requires `dry_run=False` (pass no `--dry-run` and use explicit live intent via platform credentials + API key).
 
 ```bash
 curl -X POST "https://generativelanguage.googleapis.com/v1beta/agents" \
@@ -286,9 +285,40 @@ Dry-run writes `deployment-config.json` (default: `.build/deployment-config.json
 }
 ```
 
-The config includes `source_packages` pointing at the packaged directory, entrypoint metadata, labels, scaling limits, gateway settings, and Vertex block when enabled.
+The config includes `source_packages`, `platform_adapter` entrypoint metadata, `class_methods`, OTEL `env_vars`, identity fields, labels, scaling limits, gateway settings, and Vertex block when enabled.
 
-**Note:** Live Agent Runtime deployment is not implemented yet. Attempting deploy with valid GCP credentials raises `DeployError` directing you to use dry-run. Treat dry-run output as the contract for CI/CD and GitOps until live deploy lands. See [Production workflows](12-production-workflows.md) for an end-to-end pipeline.
+**Live deploy (M3):** With ADC configured, `deploy` calls `vertexai.Client().agent_engines.create`. Additional flags:
+
+```bash
+uv run antigravity-agentkit deploy examples/agent_platform \
+  --project "$GCP_PROJECT" \
+  --location "$GCP_LOCATION" \
+  --resource-name "projects/.../reasoningEngines/..."  # update existing
+uv run antigravity-agentkit deploy examples/agent_platform \
+  --project "$GCP_PROJECT" \
+  --location "$GCP_LOCATION" \
+  --status
+uv run antigravity-agentkit rollback examples/agent_platform \
+  --project "$GCP_PROJECT" \
+  --location "$GCP_LOCATION" \
+  --to sha256:abc123
+```
+
+### Identity and observability (`deployment.yaml`)
+
+```yaml
+spec:
+  identity:
+    mode: agent-identity # agent-identity | service-account | oauth
+    serviceAccount: agent@project.iam.gserviceaccount.com
+  observability:
+    cloudTrace: true
+    captureMessageContent: event_only # false | event_only | full
+    logsBucket: gs://project-logs
+    bigQueryAnalytics: false
+```
+
+Legacy `spec.serviceAccount` remains supported; prefer `spec.identity`.
 
 ### GCP credentials
 

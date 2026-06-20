@@ -7,7 +7,6 @@ from typing import Any
 
 from antigravity_agentkit.deploy._common import (
     merge_deployment_labels,
-    raise_live_deploy_not_implemented,
     resolve_display_name,
     should_dry_run,
     write_dry_run_artifact,
@@ -20,6 +19,12 @@ from antigravity_agentkit.deploy.capabilities import (
 from antigravity_agentkit.deploy.package import build_source_package
 from antigravity_agentkit.deploy.target import DeployContext
 from antigravity_agentkit.ir import CompiledAgentIR
+from antigravity_agentkit.platform.agent_engines import (
+    create_or_update_agent_engine,
+    merge_platform_deploy_fields,
+)
+from antigravity_agentkit.platform.iam import identity_api_fields
+from antigravity_agentkit.platform.observability import observability_env_vars
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 
@@ -64,8 +69,6 @@ def build_deployment_config(  # noqa: PLR0913
 
     config: dict[str, Any] = {
         "source_packages": [str(package_dir or project.root)],
-        "entrypoint_module": "agent",
-        "entrypoint_object": "root_agent",
         "requirements_file": "requirements.txt",
         "display_name": display_name,
         "description": manifest.metadata.description or "",
@@ -85,8 +88,10 @@ def build_deployment_config(  # noqa: PLR0913
             "location": ir.vertex.location or location,
         }
 
-    if deploy_spec.service_account:
-        config["service_account"] = deploy_spec.service_account
+    identity_fields = identity_api_fields(deployment)
+    service_account = identity_fields.get("service_account") or deploy_spec.service_account
+    if service_account:
+        config["service_account"] = service_account
     if deploy_spec.min_instances is not None:
         config["min_instances"] = deploy_spec.min_instances
     if deploy_spec.max_instances is not None:
@@ -108,7 +113,12 @@ def build_deployment_config(  # noqa: PLR0913
             "metadata_file": "registry-metadata.json",
         }
 
-    return config
+    env_vars = observability_env_vars(deployment)
+    return merge_platform_deploy_fields(
+        config,
+        env_vars=env_vars,
+        identity_fields=identity_fields,
+    )
 
 
 def deploy(  # noqa: PLR0913
@@ -119,6 +129,9 @@ def deploy(  # noqa: PLR0913
     *,
     output_path: str | Path | None = None,
     dry_run: bool | None = None,
+    resource_name: str | None = None,
+    wait: bool = True,
+    status_only: bool = False,
 ) -> dict[str, Any]:
     """Deploy agent to Agent Platform Runtime or write config in dry-run mode."""
     ir = project.compile()
@@ -130,10 +143,28 @@ def deploy(  # noqa: PLR0913
     )
     validate_ir(ir, deployment, context)
 
-    if not should_dry_run(dry_run=dry_run):
-        raise_live_deploy_not_implemented("Agent Platform Runtime")
+    package_dir = project.root / ".build" / project.manifest.metadata.name
+    if status_only:
+        from antigravity_agentkit.platform.rollback import deploy_status_summary
 
-    package_dir = build_source_package(project, compiled=ir)  # pylint: disable=unexpected-keyword-arg
+        if not package_dir.is_dir():
+            package_dir = build_source_package(
+                project,
+                compiled=ir,
+                deployment=deployment,
+            )
+        return deploy_status_summary(
+            package_dir,
+            project_id=project_id,
+            location=location,
+            resource_name=resource_name,
+        )
+
+    package_dir = build_source_package(
+        project,
+        compiled=ir,
+        deployment=deployment,
+    )
     config = build_deployment_config(
         project,
         ir,
@@ -151,6 +182,18 @@ def deploy(  # noqa: PLR0913
         location=location,
         path=package_dir / "registry-metadata.json",
     )
+
+    if not should_dry_run(dry_run=dry_run):
+        mcp_names = [server.name for server in ir.mcp_servers]
+        return create_or_update_agent_engine(
+            config,
+            package_dir,
+            project_id=project_id,
+            location=location,
+            resource_name=resource_name,
+            wait=wait,
+            mcp_server_names=mcp_names,
+        )
 
     out = Path(output_path or project.root / ".build" / "deployment-config.json")
     return write_dry_run_artifact(out, config, extra={"package_dir": str(package_dir)})

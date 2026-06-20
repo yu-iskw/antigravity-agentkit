@@ -34,14 +34,16 @@ class DeployTarget(Protocol):
         ir: CompiledAgentIR,
         deployment: DeploymentManifest,
         context: DeployContext,
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
 
     def build_config(
         self,
         ir: CompiledAgentIR,
         deployment: DeploymentManifest,
         context: DeployContext,
-    ) -> dict[str, JsonValue]: ...
+    ) -> dict[str, JsonValue]:
+        raise NotImplementedError
 
     def deploy(
         self,
@@ -50,4 +52,5 @@ class DeployTarget(Protocol):
         context: DeployContext,
         *,
         project_root: Path,
-    ) -> dict[str, JsonValue]: ...
+    ) -> dict[str, JsonValue]:
+        raise NotImplementedError

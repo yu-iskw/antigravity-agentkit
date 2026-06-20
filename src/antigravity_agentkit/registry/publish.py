@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -39,14 +40,16 @@ def _iter_skill_files(skill_root: Path) -> list[Path]:
     return sorted(files)
 
 
-def publish_skill(
+def publish_skill(  # noqa: PLR0913
     skill_dir: str | Path,
     *,
     output_dir: str | Path | None = None,
     project: str | None = None,
     location: str | None = None,
+    live: bool = False,
+    write_lock: bool = False,
 ) -> dict[str, Any]:
-    """Validate a skill package and create a zip archive (local publish stub)."""
+    """Validate a skill package and create a zip archive; optionally upload live."""
     skill_root = Path(skill_dir).resolve()
     if not skill_root.is_dir():
         raise RegistryError(f"Skill directory not found: {skill_root}")
@@ -71,7 +74,7 @@ def publish_skill(
             hasher.update(member.encode("utf-8"))
             hasher.update(payload)
 
-    return {
+    result = {
         "status": "packaged",
         "skillName": skill.name,
         "archivePath": str(archive_path),
@@ -84,3 +87,27 @@ def publish_skill(
             else None
         ),
     }
+
+    if live:
+        if not project or not location:
+            raise RegistryError("Live publish-skill requires --project and --location.")
+        from antigravity_agentkit.platform.registry import publish_skill_live
+
+        live_result = publish_skill_live(
+            project_id=project,
+            location=location,
+            skill_name=skill.name,
+            zip_path=archive_path,
+            sha256=f"sha256:{hasher.hexdigest()}",
+        )
+        result.update(live_result)
+
+    if write_lock:
+        lock_path = skill_root.parent.parent / "skills.lock"
+        lock_path.write_text(
+            json.dumps({skill.name: result.get("registryRef", "")}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        result["skillsLockPath"] = str(lock_path)
+
+    return result

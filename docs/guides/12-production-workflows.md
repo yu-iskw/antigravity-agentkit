@@ -6,7 +6,7 @@ For the boundary between AgentKit and Google Cloud Agent Platform, see [ADR 0003
 
 ## Agent Platform handoff (CI contract factory)
 
-AgentKit produces artifacts; your platform pipeline applies them. AgentKit does **not** call Agent Runtime or Registry APIs in M2.
+AgentKit produces artifacts and can **apply live platform operations** when the `[gcp]` extra and credentials are configured. See [ADR 0004](../adr/0004-native-platform-operations.md).
 
 ```mermaid
 sequenceDiagram
@@ -20,12 +20,10 @@ sequenceDiagram
     CI->>AK: validate --level full --profile prod-readonly
     CI->>AK: eval
     CI->>AK: package
-    CI->>AK: deploy --dry-run
-    CI->>AK: register
-    AK->>Art: .build/agent/, deployment-config.json, registry-metadata.json
-    CI->>Plat: Upload artifacts + apply deploy
-    Plat->>Plat: Agent Runtime + Gateway + Registry
-    Plat->>Plat: Agent Platform eval on deployed runtime
+    CI->>AK: deploy (live when creds present)
+    CI->>AK: register --live / publish
+    AK->>Art: deploy-state.json + reasoningEngine resource
+    CI->>Plat: Platform eval --mode platform
 ```
 
 Mock `eval` runs in CI only. [Agent Platform evaluation](13-agent-platform-evaluation.md) (offline, simulated, online monitors) is a post-deploy step for the platform team.

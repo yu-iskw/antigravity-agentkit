@@ -9,6 +9,7 @@ from typing import Any
 
 from antigravity_agentkit.ir import CompiledAgentIR
 from antigravity_agentkit.json_types import JsonValue
+from antigravity_agentkit.platform.iam import resolve_identity
 from antigravity_agentkit.registry.gateway import build_gateway_metadata
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 
@@ -65,6 +66,7 @@ def build_registry_metadata(
     scope = (
         registry_scope if registry_scope is not None else _registry_scope_for_target(target_name)
     )
+    identity = resolve_identity(deployment)
 
     metadata: dict[str, JsonValue] = {
         "agent": {
@@ -79,8 +81,8 @@ def build_registry_metadata(
             "location": location,
         },
         "identity": {
-            "mode": "agent-identity",
-            "serviceAccount": deployment.spec.service_account,
+            "mode": identity.mode,
+            "serviceAccount": identity.service_account,
         },
         "gateway": build_gateway_metadata(deployment),
         "skills": [
@@ -159,3 +161,20 @@ def build_agent_registry_metadata(
             location=location,
         )
     )
+
+
+def build_live_registry_payload(
+    project: Any,
+    deployment: DeploymentManifest,
+    *,
+    project_id: str,
+    location: str,
+) -> dict[str, Any]:
+    """Build registry metadata with live registration fields."""
+    metadata = build_agent_registry_metadata(project, deployment, location=location)
+    metadata["registry"] = {
+        "project": project_id,
+        "location": location,
+        "mcpServers": build_mcp_server_metadata(project),
+    }
+    return metadata

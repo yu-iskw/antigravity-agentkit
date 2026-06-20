@@ -16,6 +16,13 @@ spec:
   labels:
     env: demo
     tier: ship-demo
+  identity:
+    mode: agent-identity
+    serviceAccount: platform-assistant@demo-project.iam.gserviceaccount.com
+  observability:
+    cloudTrace: true
+    captureMessageContent: event_only
+    bigQueryAnalytics: false
   gateway:
     enabled: true
     egressPolicy: restricted

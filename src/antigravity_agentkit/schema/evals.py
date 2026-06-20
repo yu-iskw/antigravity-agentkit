@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+EvalMode = Literal["mock", "live", "platform"]
+
+
+class EvalJudge(BaseModel):
+    """Optional LLM-as-judge configuration for an eval case."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    prompt_template: str | None = Field(default=None, alias="promptTemplate")
+    judge_model: str | None = Field(default=None, alias="judgeModel")
 
 
 class EvalExpected(BaseModel):
@@ -24,6 +35,9 @@ class EvalExpected(BaseModel):
         default_factory=list,
         alias="forbiddenPatterns",
     )
+    reference_answer: str | None = Field(default=None, alias="referenceAnswer")
+    metric: str | None = None
+    threshold: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class EvalToolConstraints(BaseModel):
@@ -44,6 +58,7 @@ class EvalCase(BaseModel):
     input: str = Field(..., min_length=1)
     expected: EvalExpected = Field(default_factory=EvalExpected)
     tools: EvalToolConstraints = Field(default_factory=EvalToolConstraints)
+    judge: EvalJudge = Field(default_factory=EvalJudge)
 
     @field_validator("name")
     @classmethod
@@ -62,6 +77,7 @@ class EvalSuite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: int = Field(..., ge=1)
+    mode: EvalMode = "mock"
     cases: list[EvalCase] = Field(..., min_length=1)
 
     @field_validator("cases")

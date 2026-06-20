@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from antigravity_agentkit.deploy.capabilities import TargetCapabilities
-from antigravity_agentkit.exceptions import DeployError
 from antigravity_agentkit.ir import CompiledAgentIR
 from antigravity_agentkit.registry.metadata import build_registry_metadata
 from antigravity_agentkit.schema.deployment import DeploymentManifest
@@ -87,14 +86,11 @@ def should_dry_run(*, dry_run: bool | None) -> bool:
     return not has_gcp_credentials()
 
 
-def raise_live_deploy_not_implemented(target: str, *, hint: str | None = None) -> None:
-    """Raise when live deploy is requested but not implemented for a target."""
-    message = f"Live {target} deployment is not implemented yet."
-    if hint:
-        message = f"{message} {hint}"
-    else:
-        message = f"{message} Use dry_run=True or deploy without GCP credentials to emit config."
-    raise DeployError(message)
+def write_json_artifact(path: Path, payload: dict[str, Any]) -> Path:
+    """Write a JSON artifact and ensure parent directories exist."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
 
 
 def write_registry_metadata_artifact(

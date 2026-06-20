@@ -1,6 +1,6 @@
 # Registry and publishing
 
-AgentKit helps you publish **skills** to Skill Registry and emit **agent metadata** for Agent Registry. Both commands are local stubs today: they validate, package, and write JSON (or zip) artifacts you can feed into CI/CD or future cloud APIs. For deployment artifacts, see [Packaging and deployment](09-packaging-and-deployment.md).
+AgentKit supports **local stubs and live apply** for registry operations with `--live` on `register` and `publish-skill`, plus `publish` for Gemini Enterprise catalog registration.
 
 ## Agent Registry: `antigravity-agentkit register`
 

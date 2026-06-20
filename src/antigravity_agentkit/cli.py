@@ -23,8 +23,7 @@ from antigravity_agentkit.ir_serde import ir_to_dict
 from antigravity_agentkit.operator_auth import IMPERSONATE_ENV
 from antigravity_agentkit.project import AgentProject
 from antigravity_agentkit.registry import (
-    build_agent_registry_metadata,
-    build_mcp_server_metadata,
+    build_live_registry_payload,
     publish_skill,
 )
 from antigravity_agentkit.runtime import ReplIO, RuntimeAgent
@@ -38,7 +37,7 @@ app = typer.Typer(
     help=(
         "Antigravity AgentKit — declarative agent compiler and governance layer.\n\n"
         "Implement: init, validate, compile, run, chat, eval\n"
-        "Ship: package, deploy, register (require deployment.yaml)"
+        "Ship: package, deploy, register, publish, rollback (require deployment.yaml)"
     ),
     no_args_is_help=True,
 )
@@ -51,6 +50,12 @@ class _LevelChoice(str, Enum):
     SECURITY = "security"
     CLOUD = "cloud"
     FULL = "full"
+
+
+class _EvalModeChoice(str, Enum):
+    MOCK = "mock"
+    LIVE = "live"
+    PLATFORM = "platform"
 
 
 class _ProfileChoice(str, Enum):
@@ -285,14 +290,34 @@ def chat_cmd(
 
 
 @app.command("eval")
-def eval_cmd(
+def eval_cmd(  # noqa: PLR0913
     path: Path = typer.Argument(..., help="Path to agent directory."),
     suite: str | None = typer.Option(None, "--suite", "-s", help="Comma-separated suite filter."),
+    mode: _EvalModeChoice = typer.Option(
+        _EvalModeChoice.MOCK,
+        "--mode",
+        "-m",
+        help="Eval mode: mock (default), live SDK, or platform against deployed runtime.",
+    ),
+    project_id: str | None = typer.Option(None, "--project", "-p"),
+    location: str | None = typer.Option(None, "--location", "-l"),
+    resource_name: str | None = typer.Option(
+        None,
+        "--resource-name",
+        help="Deployed Agent Runtime resource (required for platform mode).",
+    ),
 ) -> None:
-    """Run evaluation suites in deterministic mock mode."""
+    """Run evaluation suites in mock, live, or platform mode."""
     try:
         project = _load_project(path)
-        result = run_evals(project, suite_filter=suite)
+        result = run_evals(
+            project,
+            suite_filter=suite,
+            mode=mode.value,
+            resource_name=resource_name,
+            project_id=project_id,
+            location=location,
+        )
         for case in result.cases:
             status = "PASS" if case.passed else "FAIL"
             console.print(f"{status} {case.suite_path}:{case.name}")
@@ -303,6 +328,35 @@ def eval_cmd(
     except AgentKitError as exc:
         _print_error(exc)
         raise typer.Exit(code=1) from exc
+
+
+@app.command("eval-export")
+def eval_export_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    output: Path = typer.Option(..., "--output", "-o", help="Platform dataset JSON output path."),
+) -> None:
+    """Export AgentKit eval cases to a Platform-compatible dataset JSON."""
+    from antigravity_agentkit.platform.evals import write_platform_dataset
+
+    try:
+        project = _load_project(path)
+        written = write_platform_dataset(project, _resolve_path(output))
+        console.print(f"[green]Wrote platform eval dataset to[/green] {written}")
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("eval-compare")
+def eval_compare_cmd(
+    baseline: Path = typer.Argument(..., help="Baseline eval results JSON."),
+    candidate: Path = typer.Argument(..., help="Candidate eval results JSON."),
+) -> None:
+    """Compare two Platform eval result JSON files."""
+    from antigravity_agentkit.platform.evals import compare_eval_results
+
+    summary = compare_eval_results(_resolve_path(baseline), _resolve_path(candidate))
+    console.print_json(json.dumps(summary, indent=2))
 
 
 @app.command("package")
@@ -321,23 +375,77 @@ def package_cmd(
 
 
 @app.command("deploy")
-def deploy_cmd(
+def deploy_cmd(  # noqa: PLR0913
     path: Path = typer.Argument(..., help="Path to agent directory."),
     project_id: str = typer.Option(..., "--project", "-p"),
     location: str = typer.Option(..., "--location", "-l"),
     output: Path | None = typer.Option(None, "--output", "-o", help="Dry-run config output path."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Force dry-run mode."),
+    no_wait: bool = typer.Option(
+        False, "--no-wait", help="Return before deploy operation completes."
+    ),
+    status: bool = typer.Option(
+        False, "--status", help="Show deploy state and live runtime status."
+    ),
+    resource_name: str | None = typer.Option(
+        None,
+        "--resource-name",
+        help="Update an existing Agent Runtime resource instead of creating one.",
+    ),
 ) -> None:
     """[Ship] Deploy or emit deployment artifacts (requires deployment.yaml)."""
     try:
         agent_project, deployment = _load_ship_context(path)
+        resolved_dry_run: bool | None
+        if dry_run or status:
+            resolved_dry_run = True
+        elif no_wait:
+            resolved_dry_run = False
+        else:
+            resolved_dry_run = None
+
         summary = deploy(
             agent_project,
             deployment,
             project_id,
             location,
             output_path=output,
-            dry_run=dry_run or None,
+            dry_run=resolved_dry_run if not status else True,
+            resource_name=resource_name,
+            wait=not no_wait,
+            status_only=status,
+        )
+        console.print_json(json.dumps(summary, indent=2))
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("rollback")
+def rollback_cmd(
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    project_id: str = typer.Option(..., "--project", "-p"),
+    location: str = typer.Option(..., "--location", "-l"),
+    to: str = typer.Option(
+        ..., "--to", help="Rollback target: package digest, git SHA, or history index."
+    ),
+    no_wait: bool = typer.Option(False, "--no-wait", help="Return before rollback completes."),
+) -> None:
+    """[Ship] Roll back a deployed agent to a prior package revision."""
+    from antigravity_agentkit.deploy import build_deployment_config
+    from antigravity_agentkit.platform.rollback import rollback_agent_engine
+
+    try:
+        agent_project, deployment = _load_ship_context(path)
+        config = build_deployment_config(agent_project, deployment, project_id, location)
+        package_dir = agent_project.root / ".build" / agent_project.manifest.metadata.name
+        summary = rollback_agent_engine(
+            config,
+            package_dir,
+            project_id=project_id,
+            location=location,
+            target=to,
+            wait=not no_wait,
         )
         console.print_json(json.dumps(summary, indent=2))
     except AgentKitError as exc:
@@ -346,11 +454,15 @@ def deploy_cmd(
 
 
 @app.command("publish-skill")
-def publish_skill_cmd(
+def publish_skill_cmd(  # noqa: PLR0913
     skill_dir: Path = typer.Argument(..., help="Path to skill package directory."),
     project_id: str | None = typer.Option(None, "--project", "-p"),
     location: str | None = typer.Option(None, "--location", "-l"),
     output_dir: Path | None = typer.Option(None, "--output-dir", "-o"),
+    live: bool = typer.Option(False, "--live", help="Upload zip to Skill Registry."),
+    write_lock: bool = typer.Option(
+        False, "--write-lock", help="Write skills.lock beside agent root."
+    ),
 ) -> None:
     """Validate and package a skill for Skill Registry publishing."""
     try:
@@ -359,6 +471,58 @@ def publish_skill_cmd(
             project=project_id,
             location=location,
             output_dir=output_dir,
+            live=live,
+            write_lock=write_lock,
+        )
+        console.print_json(json.dumps(summary, indent=2))
+    except AgentKitError as exc:
+        _print_error(exc)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("publish")
+def publish_cmd(  # noqa: PLR0913
+    path: Path = typer.Argument(..., help="Path to agent directory."),
+    project_id: str = typer.Option(..., "--project", "-p"),
+    location: str = typer.Option(..., "--location", "-l"),
+    resource_name: str = typer.Option(
+        ..., "--resource-name", help="Deployed Agent Runtime resource."
+    ),
+    registry_name: str | None = typer.Option(None, "--registry-name"),
+    live_register: bool = typer.Option(
+        False,
+        "--live-register",
+        help="Register agent metadata with Agent Registry before Enterprise publish.",
+    ),
+) -> None:
+    """[Ship] Publish a deployed agent to Gemini Enterprise catalog."""
+    from antigravity_agentkit.platform.enterprise import publish_to_gemini_enterprise
+    from antigravity_agentkit.platform.registry import register_agent_live
+
+    try:
+        agent_project, deployment = _load_ship_context(path)
+        metadata = build_live_registry_payload(
+            agent_project,
+            deployment,
+            project_id=project_id,
+            location=location,
+        )
+        resolved_registry_name = registry_name
+        if live_register:
+            registered = register_agent_live(
+                metadata,
+                project_id=project_id,
+                location=location,
+                resource_name=resource_name,
+            )
+            resolved_registry_name = registered.get("registryName") or registry_name
+
+        summary = publish_to_gemini_enterprise(
+            project_id=project_id,
+            location=location,
+            resource_name=resource_name,
+            registry_name=resolved_registry_name,
+            display_name=deployment.spec.display_name,
         )
         console.print_json(json.dumps(summary, indent=2))
     except AgentKitError as exc:
@@ -367,25 +531,38 @@ def publish_skill_cmd(
 
 
 @app.command("register")
-def register_cmd(
+def register_cmd(  # noqa: PLR0913
     path: Path = typer.Argument(..., help="Path to agent directory."),
     project_id: str = typer.Option(..., "--project", "-p"),
     location: str = typer.Option(..., "--location", "-l"),
     output: Path | None = typer.Option(None, "--output", "-o"),
+    live: bool = typer.Option(False, "--live", help="Register with Agent Registry API."),
+    resource_name: str | None = typer.Option(
+        None,
+        "--resource-name",
+        help="Deployed Agent Runtime resource for live registration.",
+    ),
 ) -> None:
-    """[Ship] Emit Agent Registry metadata (requires deployment.yaml)."""
+    """[Ship] Emit or apply Agent Registry metadata (requires deployment.yaml)."""
+    from antigravity_agentkit.platform.registry import register_agent_live
+
     try:
         agent_project, deployment = _load_ship_context(path)
-        metadata = build_agent_registry_metadata(
+        metadata = build_live_registry_payload(
             agent_project,
             deployment,
+            project_id=project_id,
             location=location,
         )
-        metadata["registry"] = {
-            "project": project_id,
-            "location": location,
-            "mcpServers": build_mcp_server_metadata(agent_project),
-        }
+        if live:
+            summary = register_agent_live(
+                metadata,
+                project_id=project_id,
+                location=location,
+                resource_name=resource_name,
+            )
+            console.print_json(json.dumps(summary, indent=2))
+            return
         if output:
             output.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
             console.print(f"[green]Wrote registry metadata to[/green] {output}")

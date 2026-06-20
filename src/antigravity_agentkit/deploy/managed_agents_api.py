@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from antigravity_agentkit.deploy._common import (
-    raise_live_deploy_not_implemented,
     write_dry_run_artifact,
     write_registry_metadata_artifact,
 )
@@ -92,8 +91,12 @@ def deploy(  # noqa: PLR0913
     *,
     output_path: str | Path | None = None,
     dry_run: bool | None = None,
+    resource_name: str | None = None,
+    wait: bool = True,
+    status_only: bool = False,
 ) -> dict[str, Any]:
-    """Emit Managed Agents API registration contract or raise on live deploy."""
+    """Emit Managed Agents API registration contract or apply live."""
+    del resource_name, wait, status_only
     ir = project.compile()
     context = DeployContext(
         project_id=project_id,
@@ -103,14 +106,16 @@ def deploy(  # noqa: PLR0913
     )
     validate_ir(ir, deployment, context)
 
-    if dry_run is False:
-        raise_live_deploy_not_implemented(
-            "Managed Agents API",
-            hint="Use dry_run=True to emit the registration contract.",
-        )
-
     config = build_deployment_config(project, ir, deployment)
     out = Path(output_path or project.root / ".build" / _DEFAULT_CONFIG_NAME)
+
+    if dry_run is False:
+        from antigravity_agentkit.platform.managed_agents import create_managed_agent
+
+        result = create_managed_agent(config)
+        result["config_path"] = str(out)
+        return result
+
     result = write_dry_run_artifact(out, config)
 
     registry_path = write_registry_metadata_artifact(

@@ -67,6 +67,42 @@ class GatewayConfig(BaseModel):
     )
 
 
+CaptureMessageContent = Literal["false", "event_only", "full"]
+IdentityMode = Literal["agent-identity", "service-account", "oauth"]
+
+
+class IdentityConfig(BaseModel):
+    """Runtime identity configuration for Agent Platform."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    mode: IdentityMode = "agent-identity"
+    service_account: str | None = Field(default=None, alias="serviceAccount")
+
+    @model_validator(mode="after")
+    def validate_service_account_for_mode(self) -> IdentityConfig:
+        """Require serviceAccount when mode is service-account."""
+        if self.mode == "service-account" and not self.service_account:
+            msg = "identity.serviceAccount is required when identity.mode is service-account."
+            raise ValueError(msg)
+        return self
+
+
+class ObservabilityConfig(BaseModel):
+    """Observability and telemetry configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    cloud_trace: bool = Field(default=True, alias="cloudTrace")
+    capture_message_content: CaptureMessageContent = Field(
+        default="event_only",
+        alias="captureMessageContent",
+    )
+    big_query_analytics: bool = Field(default=False, alias="bigQueryAnalytics")
+    logs_bucket: str | None = Field(default=None, alias="logsBucket")
+    bq_dataset: str | None = Field(default=None, alias="bqDataset")
+
+
 class DeploymentSpec(BaseModel):
     """Platform deployment configuration."""
 
@@ -88,6 +124,8 @@ class DeploymentSpec(BaseModel):
     )
     labels: dict[str, str] = Field(default_factory=dict)
     gateway: GatewayConfig | None = None
+    identity: IdentityConfig | None = None
+    observability: ObservabilityConfig | None = None
 
     @model_validator(mode="after")
     def validate_instance_bounds(self) -> DeploymentSpec:
@@ -117,10 +155,14 @@ class DeploymentManifest(BaseModel):
 
 
 __all__ = [
+    "CaptureMessageContent",
     "DeployTarget",
     "DeploymentManifest",
     "DeploymentMetadata",
     "DeploymentSpec",
     "GatewayConfig",
+    "IdentityConfig",
+    "IdentityMode",
+    "ObservabilityConfig",
     "ResourceLimits",
 ]

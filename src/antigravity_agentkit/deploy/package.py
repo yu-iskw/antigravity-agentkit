@@ -13,7 +13,10 @@ from antigravity_agentkit.exceptions import DeployError, LoadError
 from antigravity_agentkit.ir import IR_SCHEMA_VERSION, CompiledAgentIR
 from antigravity_agentkit.ir_serde import ir_to_json
 from antigravity_agentkit.paths import resolve_project_path
+from antigravity_agentkit.platform.observability import observability_requirements_extra
+from antigravity_agentkit.platform.runtime_adapter import platform_adapter_source
 from antigravity_agentkit.project import AgentProject
+from antigravity_agentkit.schema.deployment import DeploymentManifest
 
 _EXCLUDED_DIRECTORY_NAMES = frozenset(
     {
@@ -108,11 +111,25 @@ def _agentkit_version() -> str:
         return "0.0.0"
 
 
+def _package_digest_excluding_lock(package_dir: Path) -> str:
+    """Return sha256 digest of package files excluding the lockfile itself."""
+    digest = hashlib.sha256()
+    for path in sorted(package_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.name in {"agentkit.lock.json", "deploy-state.json"}:
+            continue
+        digest.update(path.relative_to(package_dir).as_posix().encode())
+        digest.update(path.read_bytes())
+    return f"sha256:{digest.hexdigest()}"
+
+
 def _write_package_files(
     project: AgentProject,
     build_root: Path,
     compiled: CompiledAgentIR,
     source_hashes: dict[str, str],
+    deployment: DeploymentManifest | None = None,
 ) -> None:
     """Write generated runtime entrypoint, IR, lockfile, and package metadata."""
     manifest = project.data.manifest
@@ -137,20 +154,6 @@ def _write_package_files(
         encoding="utf-8",
     )
 
-    lockfile = {
-        "agentkitVersion": _agentkit_version(),
-        "irSchemaVersion": IR_SCHEMA_VERSION,
-        "generatedAt": datetime.now(UTC).isoformat(),
-        "sourceHashes": source_hashes,
-        "sdkCompatibility": {
-            "minimumGoogleAntigravity": "0.1.4",
-        },
-    }
-    (build_root / "agentkit.lock.json").write_text(
-        json.dumps(lockfile, indent=2),
-        encoding="utf-8",
-    )
-
     entrypoint = (
         '"""Generated Antigravity AgentKit runtime entrypoint."""\n\n'
         "import os\n\n"
@@ -162,9 +165,35 @@ def _write_package_files(
         '    root_agent = create_agent_from_ir_file("compiled-agent-ir.json", project_root=".")\n'
     )
     (build_root / "agent.py").write_text(entrypoint, encoding="utf-8")
+    (build_root / "platform_adapter.py").write_text(
+        platform_adapter_source(),
+        encoding="utf-8",
+    )
 
-    requirements = "antigravity-agentkit[antigravity]\n"
+    requirement_lines = [
+        "antigravity-agentkit[antigravity]",
+        "google-cloud-aiplatform[agent_engines]>=1.144",
+    ]
+    if deployment is not None:
+        requirement_lines.extend(observability_requirements_extra(deployment))
+    requirements = "\n".join(dict.fromkeys(requirement_lines)) + "\n"
     (build_root / "requirements.txt").write_text(requirements, encoding="utf-8")
+
+    package_digest_value = _package_digest_excluding_lock(build_root)
+    lockfile = {
+        "agentkitVersion": _agentkit_version(),
+        "irSchemaVersion": IR_SCHEMA_VERSION,
+        "generatedAt": datetime.now(UTC).isoformat(),
+        "sourceHashes": source_hashes,
+        "packageDigest": package_digest_value,
+        "sdkCompatibility": {
+            "minimumGoogleAntigravity": "0.1.4",
+        },
+    }
+    (build_root / "agentkit.lock.json").write_text(
+        json.dumps(lockfile, indent=2),
+        encoding="utf-8",
+    )
 
 
 def build_source_package(
@@ -172,6 +201,7 @@ def build_source_package(
     output_dir: str | Path | None = None,
     *,
     compiled: CompiledAgentIR | None = None,
+    deployment: DeploymentManifest | None = None,
 ) -> Path:
     """Build a deployable source package from the agent directory."""
     build_root = (
@@ -182,10 +212,17 @@ def build_source_package(
 
     package_entries = _package_entries(project.root)
     ir = compiled if compiled is not None else project.compile()
+    if deployment is None:
+        try:
+            from antigravity_agentkit.deploy import load_deployment
+
+            deployment = load_deployment(project.root)
+        except LoadError:
+            deployment = None
     if build_root.exists():
         shutil.rmtree(build_root)
     build_root.mkdir(parents=True)
 
     source_hashes = _copy_project_tree(package_entries, build_root)
-    _write_package_files(project, build_root, ir, source_hashes)
+    _write_package_files(project, build_root, ir, source_hashes, deployment=deployment)
     return build_root
