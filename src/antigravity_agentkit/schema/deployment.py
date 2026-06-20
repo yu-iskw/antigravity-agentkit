@@ -19,6 +19,10 @@ class DeploymentMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., min_length=1, max_length=64)
+    namespace: str | None = Field(
+        default=None,
+        description="Optional non-default namespace for platform deployment metadata.",
+    )
 
     @field_validator("name")
     @classmethod

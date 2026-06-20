@@ -24,10 +24,10 @@ from antigravity_agentkit.schema.agent import (
     VertexConfig,
 )
 from antigravity_agentkit.schema.deployment import (
-    DeployTarget,
     DeploymentManifest,
     DeploymentMetadata,
     DeploymentSpec,
+    DeployTarget,
     GatewayConfig,
     ResourceLimits,
 )

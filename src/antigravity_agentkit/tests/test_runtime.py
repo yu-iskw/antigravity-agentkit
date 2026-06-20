@@ -55,10 +55,13 @@ class _SessionBoundResponse:
 
 
 class _SessionAgent:
+    """Minimal async context manager that returns a fixed chat response."""
+
     def __init__(self, response: _SessionBoundResponse) -> None:
         self._response = response
 
-    async def chat(self, _prompt: str) -> _SessionBoundResponse:
+    async def chat(self, prompt: str) -> _SessionBoundResponse:
+        del prompt
         return self._response
 
     async def __aenter__(self) -> _SessionAgent:
@@ -70,11 +73,12 @@ class _SessionAgent:
 
 def test_run_chat_drains_response_before_session_exit() -> None:
     """run_chat must resolve text before leaving async with agent."""
+    # pylint: disable=protected-access
     from antigravity_agentkit.runtime import RuntimeAgent
 
     response = _SessionBoundResponse()
     runtime = RuntimeAgent.__new__(RuntimeAgent)
-    runtime._project = type(
+    runtime._project = type(  # type: ignore[attr-defined]
         "_P",
         (),
         {

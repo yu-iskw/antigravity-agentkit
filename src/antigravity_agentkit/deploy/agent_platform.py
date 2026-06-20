@@ -99,7 +99,7 @@ def _has_gcp_credentials() -> bool:
         return False
 
 
-def deploy(
+def deploy(  # noqa: PLR0913
     project: AgentProject,
     deployment: DeploymentManifest,
     project_id: str,

@@ -19,12 +19,12 @@ from antigravity_agentkit.subagents import discover_subagents, load_subagents_fr
 AGENT_FILENAME = "agent.yaml"
 DEPLOYMENT_FILENAME = "deployment.yaml"
 
-TModel = TypeVar("TModel", bound=BaseModel)
+ManifestT = TypeVar("ManifestT", bound=BaseModel)
 
 
 def load_yaml_manifest(
-    path: Path, model_type: type[TModel], label: str
-) -> tuple[TModel, dict[str, Any]]:
+    path: Path, model_type: type[ManifestT], label: str
+) -> tuple[ManifestT, dict[str, Any]]:
     """Load and parse a YAML manifest file into a Pydantic model."""
     if not path.is_file():
         raise LoadError(f"{label} not found: {path}")

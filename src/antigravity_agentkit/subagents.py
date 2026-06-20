@@ -96,12 +96,12 @@ def compile_delegation_tools(
 
 def delegation_tool_dict_from_ir(entry: dict[str, Any]) -> dict[str, Any]:
     """Return serializable delegation metadata derived from subagent IR."""
-    safe_name = entry["name"].replace("-", "_")
+    name = entry["name"]
+    safe_name = name.replace("-", "_")
     return {
         "name": f"delegate_to_{safe_name}",
-        "description": entry.get("description")
-        or f"Delegate tasks to the {entry['name']} subagent.",
-        "subagent": entry["name"],
+        "description": entry.get("description") or f"Delegate tasks to the {name} subagent.",
+        "subagent": name,
         "tools": list(entry.get("tools") or []),
         "system_instructions": entry.get("systemInstructions", ""),
     }
@@ -190,7 +190,8 @@ def subagent_index_section(
 
     lines = ["## Available Subagents", ""]
     for entry in subagent_ir:
-        lines.append(f"### {entry['name']}")
+        name = entry["name"]
+        lines.append(f"### {name}")
         if entry.get("description"):
             lines.append(entry["description"])
         if entry.get("tools"):

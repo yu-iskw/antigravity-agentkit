@@ -2,6 +2,7 @@ apiVersion: antigravity-agentkit.dev/v1alpha1
 kind: Deployment
 metadata:
   name: ship-agent
+  namespace: ship-agent-test
 spec:
   target: agent-platform
   displayName: Ship Agent

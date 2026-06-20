@@ -77,6 +77,11 @@ def try_compile_sdk_capabilities(cap_ir: dict[str, Any]) -> Any | None:
     except ImportError:
         return None
 
+    builtin_tools = getattr(types, "BuiltinTools", None)
+    capabilities_config = getattr(types, "CapabilitiesConfig", None)
+    if builtin_tools is None or capabilities_config is None:
+        return None
+
     kwargs: dict[str, Any] = {}
     enable_subagents = cap_ir.get("enableSubagents")
     if enable_subagents is True:
@@ -86,21 +91,17 @@ def try_compile_sdk_capabilities(cap_ir: dict[str, Any]) -> Any | None:
 
     enabled = cap_ir.get("enabledTools") or []
     if enabled:
-        kwargs["enabled_tools"] = [
-            _resolve_builtin_tool(name, types.BuiltinTools) for name in enabled
-        ]
+        kwargs["enabled_tools"] = [_resolve_builtin_tool(name, builtin_tools) for name in enabled]
 
     disabled = cap_ir.get("disabledTools") or []
     if disabled:
-        kwargs["disabled_tools"] = [
-            _resolve_builtin_tool(name, types.BuiltinTools) for name in disabled
-        ]
+        kwargs["disabled_tools"] = [_resolve_builtin_tool(name, builtin_tools) for name in disabled]
 
     if kwargs:
-        return types.CapabilitiesConfig(**kwargs)
+        return capabilities_config(**kwargs)
 
     mode = cap_ir.get("mode", "restricted")
     if mode == "open":
-        return types.CapabilitiesConfig()
+        return capabilities_config()
 
     return None

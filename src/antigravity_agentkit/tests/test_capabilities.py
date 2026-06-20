@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -59,9 +60,7 @@ def test_open_mode_emits_sdk_capabilities() -> None:
         has_subagents=False,
     )
 
-    try:
-        import google.antigravity  # noqa: F401
-    except ImportError:
+    if importlib.util.find_spec("google.antigravity") is None:
         pytest.skip("google-antigravity not installed")
 
     sdk_cap = try_compile_sdk_capabilities(cap_ir)
