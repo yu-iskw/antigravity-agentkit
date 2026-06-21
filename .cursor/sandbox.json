@@ -4,5 +4,6 @@
   "networkPolicy": {
     "default": "deny",
     "allow": ["github.com", "pypi.org", "*.trunk.io"]
-  }
+  },
+  "additionalReadonlyPaths": ["~/.cache/trunk/tools/", "~/.local/share/mise/"]
 }

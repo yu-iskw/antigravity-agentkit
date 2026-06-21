@@ -10,6 +10,7 @@ import yaml
 from typer.testing import CliRunner
 
 from antigravity_agentkit.cli import _print_plain, app
+from antigravity_agentkit.runtime import ChatDisplay
 from antigravity_agentkit.schema.agent import AgentManifest
 
 runner = CliRunner()
@@ -202,6 +203,85 @@ def test_cli_chat_invokes_run_repl(
     assert "Chat with hello-world" in result.stdout
 
 
-def test_print_plain_does_not_interpret_markup() -> None:
+def test_cli_chat_passes_display_flags(
+    hello_world_agent_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """chat forwards --debug and --no-stream to run_repl display settings."""
+    calls: list[dict[str, object]] = []
+
+    async def fake_run_repl(runtime_agent: object, **kwargs: object) -> None:
+        del runtime_agent
+        calls.append(kwargs)
+
+    monkeypatch.setattr(
+        "antigravity_agentkit.runtime.RuntimeAgent.run_repl",
+        fake_run_repl,
+    )
+
+    result = runner.invoke(
+        app,
+        ["chat", str(hello_world_agent_dir), "--debug", "--no-stream"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert len(calls) == 1
+    assert calls[0]["display"] == ChatDisplay(stream=False, debug=True)
+
+
+def test_cli_run_passes_display_flags(
+    hello_world_agent_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """run forwards --debug and --no-stream to run_chat display settings."""
+    calls: list[dict[str, object]] = []
+
+    async def fake_run_chat(runtime_agent: object, prompt: str, **kwargs: object) -> str:
+        del runtime_agent, prompt
+        calls.append(kwargs)
+        return "ok"
+
+    monkeypatch.setattr(
+        "antigravity_agentkit.runtime.RuntimeAgent.run_chat",
+        fake_run_chat,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(hello_world_agent_dir),
+            "--prompt",
+            "hi",
+            "--debug",
+            "--no-stream",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert len(calls) == 1
+    assert calls[0]["display"] == ChatDisplay(stream=False, debug=True)
+
+
+def test_chat_display_from_cli_uses_tty_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """from_cli enables streaming when stdout is a TTY and stream is unset."""
+    monkeypatch.setattr("antigravity_agentkit.runtime.sys.stdout.isatty", lambda: True)
+    assert ChatDisplay.from_cli(stream=None, debug=False) == ChatDisplay(stream=True, debug=False)
+
+    monkeypatch.setattr("antigravity_agentkit.runtime.sys.stdout.isatty", lambda: False)
+    assert ChatDisplay.from_cli(stream=None, debug=False) == ChatDisplay(stream=False, debug=False)
+
+
+def test_print_plain_does_not_interpret_markup(monkeypatch: pytest.MonkeyPatch) -> None:
     """Agent output with bracketed paths must not crash Rich markup rendering."""
+    printed: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def capture_print(*args: object, **kwargs: object) -> None:
+        printed.append((args, dict(kwargs)))
+
+    monkeypatch.setattr("antigravity_agentkit.cli.console.print", capture_print)
     _print_plain("[/Users/yu/local/src/github/antigravity-agentkit]")
+
+    assert printed
+    assert printed[0][0] == ("[/Users/yu/local/src/github/antigravity-agentkit]",)
+    assert printed[0][1]["markup"] is False

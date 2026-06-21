@@ -3,3 +3,4 @@ default: deny
 allow:
   - tool: read_skill
   - tool: run_command
+  - tool: search_web
