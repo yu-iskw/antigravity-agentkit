@@ -9,12 +9,19 @@ import select
 import signal
 import subprocess
 import sys
+from collections.abc import AsyncIterator
 from unittest.mock import create_autospec
 
 import pytest
 
 from antigravity_agentkit.project import AgentProject
-from antigravity_agentkit.runtime import ReplIO, RuntimeAgent, chat_response_text
+from antigravity_agentkit.runtime import (
+    ChatDisplay,
+    ReplIO,
+    RuntimeAgent,
+    chat_response_text,
+    consume_chat_response,
+)
 
 
 def _runtime_with_agent(agent: object) -> RuntimeAgent:
@@ -53,6 +60,121 @@ def test_chat_response_text_falls_back_to_str() -> None:
     result = asyncio.run(chat_response_text({"answer": "plain"}))
 
     assert "answer" in result
+
+
+class Text:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class Thought:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class ToolCall:
+    def __init__(self, name: str, args: dict[str, str]) -> None:
+        self.name = name
+        self.args = args
+
+
+class _ChunkedChatResponse:
+    """Minimal ChatResponse stub with async chunks iterator."""
+
+    def __init__(self, chunks: list[object], full_text: str) -> None:
+        self._chunks = chunks
+        self._full_text = full_text
+
+    @property
+    def chunks(self) -> AsyncIterator[object]:
+        async def _iter_chunks() -> AsyncIterator[object]:
+            for chunk in self._chunks:
+                yield chunk
+
+        return _iter_chunks()
+
+    async def text(self) -> str:
+        return self._full_text
+
+
+def test_consume_chat_response_streams_text() -> None:
+    """consume_chat_response writes Text deltas when streaming."""
+    response = _ChunkedChatResponse(
+        [Text("hel"), Text("lo")],
+        "hello",
+    )
+    written: list[str] = []
+
+    result = asyncio.run(
+        consume_chat_response(
+            response,
+            ChatDisplay(stream=True),
+            write_out=written.append,
+        )
+    )
+
+    assert result == "hello"
+    assert written == ["hel", "lo", "\n"]
+
+
+def test_consume_chat_response_debug_tool_call() -> None:
+    """consume_chat_response writes tool debug lines to stderr hook."""
+    response = _ChunkedChatResponse(
+        [ToolCall("read_skill", {"name": "demo"})],
+        "",
+    )
+    debug_lines: list[str] = []
+    written: list[str] = []
+
+    result = asyncio.run(
+        consume_chat_response(
+            response,
+            ChatDisplay(stream=False, debug=True),
+            write_out=written.append,
+            write_debug=debug_lines.append,
+        )
+    )
+
+    assert result == ""
+    assert not written
+    assert len(debug_lines) == 1
+    assert "[tool] call read_skill" in debug_lines[0]
+
+
+def test_consume_chat_response_falls_back_without_chunks() -> None:
+    """consume_chat_response uses text() when chunks are unavailable."""
+    debug_lines: list[str] = []
+    written: list[str] = []
+
+    result = asyncio.run(
+        consume_chat_response(
+            _AsyncTextResponse(),
+            ChatDisplay(stream=True, debug=True),
+            write_out=written.append,
+            write_debug=debug_lines.append,
+        )
+    )
+
+    assert result == "hello from agentkit"
+    assert debug_lines == ["debug: streaming unavailable"]
+    assert written == ["hello from agentkit", "\n"]
+
+
+def test_consume_chat_response_debug_thought() -> None:
+    """consume_chat_response writes thought debug lines."""
+    response = _ChunkedChatResponse([Thought("planning")], "")
+    debug_lines: list[str] = []
+
+    result = asyncio.run(
+        consume_chat_response(
+            response,
+            ChatDisplay(stream=False, debug=True),
+            write_debug=debug_lines.append,
+        )
+    )
+
+    assert result == ""
+    assert debug_lines == ["[thought] planning"]
 
 
 class _SessionBoundResponse:
@@ -99,7 +221,10 @@ def test_run_chat_drains_response_before_session_exit() -> None:
 
     result = asyncio.run(
         asyncio.wait_for(
-            runtime.run_chat("Reply with exactly: hello from agentkit"),
+            runtime.run_chat(
+                "Reply with exactly: hello from agentkit",
+                display=ChatDisplay(stream=True),
+            ),
             timeout=2,
         )
     )

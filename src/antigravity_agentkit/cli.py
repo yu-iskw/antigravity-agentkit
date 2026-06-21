@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from enum import Enum
 from pathlib import Path
@@ -26,7 +27,7 @@ from antigravity_agentkit.registry import (
     build_live_registry_payload,
     publish_skill,
 )
-from antigravity_agentkit.runtime import ReplIO, RuntimeAgent
+from antigravity_agentkit.runtime import ChatDisplay, ReplIO, RuntimeAgent
 from antigravity_agentkit.schema.agent import AgentManifest
 from antigravity_agentkit.schema.deployment import DeploymentManifest
 from antigravity_agentkit.sdk.errors import SdkCompatibilityError
@@ -42,6 +43,17 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+_STREAM_OPTION = typer.Option(
+    None,
+    "--stream/--no-stream",
+    help="Stream assistant text incrementally (default: on when stdout is a TTY).",
+)
+_DEBUG_OPTION = typer.Option(
+    False,
+    "--debug",
+    help="Print agent loop status (thoughts, tool calls) to stderr.",
+)
 
 
 class _LevelChoice(str, Enum):
@@ -205,7 +217,7 @@ def compile_cmd(
 
 
 @app.command("run")
-def run_cmd(
+def run_cmd(  # noqa: PLR0913
     path: Path = typer.Argument(..., help="Path to agent directory."),
     prompt: str = typer.Option(..., "--prompt", "-p", help="User prompt to send."),
     production: bool = typer.Option(False, "--production"),
@@ -214,6 +226,8 @@ def run_cmd(
         "--interactive/--no-interactive",
         help="Prompt for ask_user / requireApproval tool approvals (default: deny).",
     ),
+    stream: bool | None = _STREAM_OPTION,
+    debug: bool = _DEBUG_OPTION,
     impersonate_service_account: str | None = typer.Option(
         None,
         "--impersonate-service-account",
@@ -222,18 +236,19 @@ def run_cmd(
     ),
 ) -> None:
     """Run a local agent chat turn."""
-    import asyncio
+    display = ChatDisplay.from_cli(stream=stream, debug=debug)
 
     async def _run() -> None:
         runtime = RuntimeAgent.from_directory(_resolve_path(path), production=production)
-        _print_plain(
-            await runtime.run_chat(
-                prompt,
-                production=production,
-                interactive=interactive,
-                impersonate_service_account=impersonate_service_account,
-            )
+        result = await runtime.run_chat(
+            prompt,
+            production=production,
+            interactive=interactive,
+            impersonate_service_account=impersonate_service_account,
+            display=display,
         )
+        if not display.stream:
+            _print_plain(result)
 
     try:
         asyncio.run(_run())
@@ -243,7 +258,7 @@ def run_cmd(
 
 
 @app.command("chat")
-def chat_cmd(
+def chat_cmd(  # noqa: PLR0913
     path: Path = typer.Argument(..., help="Path to agent directory."),
     prompt: str | None = typer.Option(
         None,
@@ -257,6 +272,8 @@ def chat_cmd(
         "--interactive/--no-interactive",
         help="Prompt for ask_user / requireApproval tool approvals (default: deny).",
     ),
+    stream: bool | None = _STREAM_OPTION,
+    debug: bool = _DEBUG_OPTION,
     impersonate_service_account: str | None = typer.Option(
         None,
         "--impersonate-service-account",
@@ -265,7 +282,7 @@ def chat_cmd(
     ),
 ) -> None:
     """Run a multi-turn local chat session (REPL)."""
-    import asyncio
+    display = ChatDisplay.from_cli(stream=stream, debug=debug)
 
     async def _chat() -> None:
         runtime = RuntimeAgent.from_directory(_resolve_path(path), production=production)
@@ -280,6 +297,7 @@ def chat_cmd(
             impersonate_service_account=impersonate_service_account,
             initial_prompt=prompt,
             io=ReplIO(print_fn=_print_plain),
+            display=display,
         )
 
     try:
