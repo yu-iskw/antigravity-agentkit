@@ -65,5 +65,4 @@ jobs:
       - name: Test build
         run: uv run bash dev/build.sh
       - name: Trunk Check
-        if: github.event_name != 'push'
         uses: trunk-io/trunk-action@v1
