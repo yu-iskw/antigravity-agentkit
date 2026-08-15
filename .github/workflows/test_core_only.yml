@@ -10,9 +10,20 @@ on:
   push:
     branches:
       - main
+    paths:
+      - .github/workflows/test_core_only.yml
+      - pyproject.toml
+      - src/antigravity_agentkit/**
+      - uv.lock
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   core-only:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
